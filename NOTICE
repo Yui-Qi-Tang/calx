@@ -1,0 +1,7 @@
+SAT protocol, checking, process control and fixtures adapted from AHE Core
+(wdd/ahe-wrap, c28c074ce), logicresolver/, whose Pouch origin is
+d71d15c3a6de776fe4b8fddcdca10d6af6ac47f6.
+Finite matrix/CNF encoding adapted from Pouch 6d9c7dc,
+internal/planning/{matrix,cnf}.go.
+The retained MIT terms are in LICENSE. External CaDiCaL and DRAT-trim
+executables are separately supplied, never bundled or downloaded by Calx.

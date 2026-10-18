@@ -1,0 +1,10 @@
+# Local graph index and analysis artifacts
+/.codebase-memory/
+# Build, acceptance and scratch outputs
+/bin/
+/artifacts/
+/work/
+/coverage.out
+*.test
+.DS_Store
+__pycache__/

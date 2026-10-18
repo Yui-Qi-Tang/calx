@@ -1,0 +1,12 @@
+{
+  "model": {
+    "fields": {"state": ["off", "on"]},
+    "actions": [{"id":"enable","guard":{"state":"off"},"effect":{"state":"on"},"frame":[]}]
+  },
+  "query": {
+    "profile":"categorical-simple-first-hit/v1",
+    "start":{"state":"off"},
+    "goal":{"state":"on"},
+    "horizon":1
+  }
+}

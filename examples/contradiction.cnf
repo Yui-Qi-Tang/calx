@@ -1,0 +1,4 @@
+c Explicit contradiction, independent of source meaning.
+p cnf 1 2
+1 0
+-1 0

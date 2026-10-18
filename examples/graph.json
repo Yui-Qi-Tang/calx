@@ -1,0 +1,1 @@
+{"node_ids":["isolated","a","b"],"edges":[{"id":"ab","from":"a","to":"b","relation":"opaque"},{"id":"loop","from":"b","to":"b","relation":"other"}]}

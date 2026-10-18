@@ -1,0 +1,14 @@
+package consumer
+import ("context";"os";"path/filepath";"testing";"github.com/Yui-Qi-Tang/calx/sat";"github.com/Yui-Qi-Tang/calx/sat/cadical")
+func TestCalxDeclaredConditions(t *testing.T){
+ r,err:=cadical.New(cadical.Config{SolverPath:os.Getenv("CALX_CADICAL"),SolverSHA256:os.Getenv("CALX_CADICAL_SHA256"),CheckerPath:os.Getenv("CALX_DRAT"),CheckerSHA256:os.Getenv("CALX_DRAT_SHA256"),ArtifactDir:filepath.Join(os.Getenv("CALX_CONSUMER_OUTPUT"),"ahe-"+os.Getenv("CALX_CONSUMER_KIND"))});if err!=nil{t.Fatal(err)}
+ view:=ConsistencyView{Members:[]ConsistencyMember{{"a"},{"b"}}}
+ atom:=ConsistencyAtom{Subject:"service",Property:"ready",Context:"snapshot"}
+ for i,neg:=range []bool{false,true}{
+  in:=ConsistencyRequest{Evidence:[]ConsistencyCondition{{ID:"a",Clauses:[][]ConsistencyLiteral{{{Atom:atom}}}},{ID:"b",Clauses:[][]ConsistencyLiteral{{{Atom:atom,Negated:neg}}}}}}
+  rules,all,err:=compileConsistency(view,in);if err!=nil{t.Fatal(err)}
+  if len(all.Origins)!=2||all.Origins[0][0]!="node:a"{t.Fatal("lost origin mapping")}
+  for j,c:=range []sat.CNF{rules,all}{id:=string(rune('a'+2*i+j));result,err:=r.Solve(context.Background(),id,c);if err!=nil{t.Fatal(err)};if err=result.Require(sat.Requirements{SATModelChecked:true,UNSATProofChecked:true});err!=nil{t.Fatal(err)};want:=sat.SAT;if neg&&j==1{want=sat.UNSAT};if result.Status!=want{t.Fatal(result.Status,want)}}
+  in.Evidence=in.Evidence[:1];if _,_,err=compileConsistency(view,in);err==nil{t.Fatal("incomplete evidence accepted")}
+ }
+}
