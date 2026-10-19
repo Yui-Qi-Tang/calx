@@ -5,6 +5,7 @@ package toolrun
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +28,15 @@ func TestCancellationKillsStartedProcessGroup(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
+	stopAndWait := func() error {
+		cancel()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(3 * time.Second):
+			return errors.New("fixture parent did not exit after cancellation")
+		}
+	}
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	deadline := time.NewTimer(5 * time.Second)
@@ -36,24 +46,30 @@ func TestCancellationKillsStartedProcessGroup(t *testing.T) {
 		select {
 		case <-ticker.C:
 			raw, err := os.ReadFile(filepath.Join(dir, "child.pid"))
-			if err == nil {
-				child, err = strconv.Atoi(strings.TrimSpace(string(raw)))
-				if err != nil {
-					child = 0
-				}
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				t.Fatal(errors.Join(err, stopAndWait()))
+			}
+			if !strings.HasSuffix(string(raw), "\n") {
+				continue // Wait for the fixture's complete PID line.
+			}
+			child, err = strconv.Atoi(strings.TrimSpace(string(raw)))
+			if err != nil {
+				t.Fatal(errors.Join(err, stopAndWait()))
+			}
+			if child <= 0 {
+				t.Fatal(errors.Join(fmt.Errorf("invalid child PID %d", child), stopAndWait()))
 			}
 		case <-deadline.C:
-			cancel()
-			<-done
-			t.Fatal("child process did not start before fixture deadline")
+			t.Fatal(errors.Join(errors.New("child process did not start before fixture deadline"), stopAndWait()))
 		}
 	}
 	// Cancellation is triggered after observing the running child's identity,
 	// so this cannot pass merely by timing out before the shell was started.
 	if err := syscall.Kill(child, 0); err != nil {
-		cancel()
-		<-done
-		t.Fatal(err)
+		t.Fatal(errors.Join(err, stopAndWait()))
 	}
 	cancel()
 	select {
@@ -67,8 +83,12 @@ func TestCancellationKillsStartedProcessGroup(t *testing.T) {
 	exitDeadline := time.NewTimer(3 * time.Second)
 	defer exitDeadline.Stop()
 	for {
-		if errors.Is(syscall.Kill(child, 0), syscall.ESRCH) {
+		err := syscall.Kill(child, 0)
+		if errors.Is(err, syscall.ESRCH) {
 			return
+		}
+		if err != nil {
+			t.Fatal(err)
 		}
 		select {
 		case <-ticker.C:

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc"><title id="title">Inside finite.Compile: operation matrix → CNF</title><desc id="desc">Worked example: off → enable → on, exactly one action. The current encoder produces 6 variables and 13 clauses.</desc><defs>
+<marker id="gray" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#94a3b8"/></marker>
+<marker id="blue" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#2563eb"/></marker>
+<marker id="teal" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#0f766e"/></marker>
+<marker id="purple" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#7c3aed"/></marker>
+<marker id="amber" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b45309"/></marker>
+<marker id="red" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b91c1c"/></marker>
+</defs><g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+<rect width="1600" height="1000" fill="#f8fafc"/>
+<text x="40" y="55" font-size="32" fill="#0f172a" font-weight="700" text-anchor="start" >Inside finite.Compile: operation matrix → CNF</text>
+<text x="40" y="94" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Worked example: off → enable → on, exactly one action. The current encoder produces 6 variables and 13 clauses.</text>
+<rect x="40" y="145" width="420" height="735" rx="14" fill="white" stroke="#e2e8f0" />
+<rect x="485" y="145" width="385" height="735" rx="14" fill="white" stroke="#e2e8f0" />
+<rect x="895" y="145" width="665" height="735" rx="14" fill="white" stroke="#e2e8f0" />
+<text x="64" y="185" font-size="15" fill="#0f766e" font-weight="600" text-anchor="start" >01  /  VALIDATE AND PROJECT</text>
+<text x="64" y="225" font-size="23" fill="#0f172a" font-weight="700" text-anchor="start" >state = {off, on}</text>
+<text x="64" y="266" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >enable: require off, assign on</text>
+<text x="64" y="296" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Start: off    Goal: on    Horizon: 1</text>
+<text x="64" y="326" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Profile: simple / first-hit</text>
+<text x="64" y="356" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >No forbidden states; no blocked paths</text>
+<text x="64" y="415" font-size="22" fill="#0f172a" font-weight="700" text-anchor="start" >finite.Project</text>
+<text x="64" y="447" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Action row: enable</text>
+<text x="288" y="487" font-size="17" fill="#2563eb" font-weight="700" text-anchor="middle" >off</text>
+<text x="368" y="487" font-size="17" fill="#2563eb" font-weight="700" text-anchor="middle" >on</text>
+<text x="64" y="540" font-size="19" fill="#0f172a" font-weight="600" text-anchor="start" >Guard</text>
+<rect x="260" y="505" width="56" height="52" rx="7" fill="#ccfbf1" stroke="white" />
+<text x="288" y="540" font-size="23" fill="#0f766e" font-weight="700" text-anchor="middle" data-matrix="guard" data-col="0" data-value="1">1</text>
+<rect x="340" y="505" width="56" height="52" rx="7" fill="#f1f5f9" stroke="white" />
+<text x="368" y="540" font-size="23" fill="#64748b" font-weight="700" text-anchor="middle" data-matrix="guard" data-col="1" data-value="0">0</text>
+<text x="64" y="605" font-size="19" fill="#0f172a" font-weight="600" text-anchor="start" >Effect</text>
+<rect x="260" y="570" width="56" height="52" rx="7" fill="#f1f5f9" stroke="white" />
+<text x="288" y="605" font-size="23" fill="#64748b" font-weight="700" text-anchor="middle" data-matrix="effect" data-col="0" data-value="0">0</text>
+<rect x="340" y="570" width="56" height="52" rx="7" fill="#ccfbf1" stroke="white" />
+<text x="368" y="605" font-size="23" fill="#0f766e" font-weight="700" text-anchor="middle" data-matrix="effect" data-col="1" data-value="1">1</text>
+<text x="64" y="670" font-size="19" fill="#0f172a" font-weight="600" text-anchor="start" data-frame="0">Frame[enable, state] = 0</text>
+<text x="64" y="705" font-size="16" fill="#334155" font-weight="400" text-anchor="start" >Its only field is assigned, not framed.</text>
+<text x="64" y="763" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Compile checks context, options,</text>
+<text x="64" y="790" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Model.Validate and Query before</text>
+<text x="64" y="817" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >building the operation matrix.</text>
+<text x="509" y="185" font-size="15" fill="#0f766e" font-weight="600" text-anchor="start" >02  /  ALLOCATE VARIABLES</text>
+<rect x="509" y="225" width="337" height="57" rx="9" fill="#dbeafe" stroke="white" />
+<text x="533" y="261" font-size="23" fill="#2563eb" font-weight="700" text-anchor="start" data-variable="1" data-kind="state">1</text>
+<text x="573" y="261" font-size="17" fill="#0f172a" font-weight="400" text-anchor="start" >state = off, time 0</text>
+<rect x="509" y="294" width="337" height="57" rx="9" fill="#dbeafe" stroke="white" />
+<text x="533" y="330" font-size="23" fill="#2563eb" font-weight="700" text-anchor="start" data-variable="2" data-kind="state">2</text>
+<text x="573" y="330" font-size="17" fill="#0f172a" font-weight="400" text-anchor="start" >state = on, time 0</text>
+<rect x="509" y="363" width="337" height="57" rx="9" fill="#dbeafe" stroke="white" />
+<text x="533" y="399" font-size="23" fill="#2563eb" font-weight="700" text-anchor="start" data-variable="3" data-kind="state">3</text>
+<text x="573" y="399" font-size="17" fill="#0f172a" font-weight="400" text-anchor="start" >state = off, time 1</text>
+<rect x="509" y="432" width="337" height="57" rx="9" fill="#dbeafe" stroke="white" />
+<text x="533" y="468" font-size="23" fill="#2563eb" font-weight="700" text-anchor="start" data-variable="4" data-kind="state">4</text>
+<text x="573" y="468" font-size="17" fill="#0f172a" font-weight="400" text-anchor="start" >state = on, time 1</text>
+<rect x="509" y="501" width="337" height="57" rx="9" fill="#ccfbf1" stroke="white" />
+<text x="533" y="537" font-size="23" fill="#0f766e" font-weight="700" text-anchor="start" data-variable="5" data-kind="action">5</text>
+<text x="573" y="537" font-size="17" fill="#0f172a" font-weight="400" text-anchor="start" >enable, transition 0</text>
+<rect x="509" y="570" width="337" height="57" rx="9" fill="#ede9fe" stroke="white" />
+<text x="533" y="606" font-size="23" fill="#7c3aed" font-weight="700" text-anchor="start" data-variable="6" data-kind="different">6</text>
+<text x="573" y="606" font-size="17" fill="#0f172a" font-weight="400" text-anchor="start" >different times 0 / 1</text>
+<text x="509" y="690" font-size="19" fill="#0f172a" font-weight="700" text-anchor="start" >IDs are not truth values.</text>
+<text x="509" y="728" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >1–4: one-hot state coordinates</text>
+<text x="509" y="757" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >5: selected action</text>
+<text x="509" y="786" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >6: inequality helper</text>
+<text x="509" y="815" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Allocation returns (ID, error)</text>
+<text x="919" y="185" font-size="15" fill="#0f766e" font-weight="600" text-anchor="start" >03  /  EMIT CLAUSES</text>
+<text x="919" y="220" font-size="22" fill="#7c3aed" font-weight="700" text-anchor="start" font-family="ui-monospace,monospace" data-dimacs-header="p cnf 6 13">p cnf 6 13</text>
+<rect x="919" y="240" width="617" height="130" rx="10" fill="#f8fafc" stroke="#e2e8f0" />
+<text x="939" y="272" font-size="18" fill="#0f172a" font-weight="600" text-anchor="start" >Exactly one category per state (4)</text>
+<text x="939" y="306" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="0">1 2 0</text>
+<text x="939" y="336" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="1">-1 -2 0</text>
+<text x="1224" y="306" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="2">3 4 0</text>
+<text x="1224" y="336" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="3">-3 -4 0</text>
+<rect x="919" y="385" width="617" height="130" rx="10" fill="#f8fafc" stroke="#e2e8f0" />
+<text x="939" y="417" font-size="18" fill="#0f172a" font-weight="600" text-anchor="start" >Start, action, guard, effect (4)</text>
+<text x="939" y="451" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="4">1 0</text>
+<text x="939" y="481" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="5">5 0</text>
+<text x="1224" y="451" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="6">-5 1 0</text>
+<text x="1224" y="481" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="7">-5 4 0</text>
+<rect x="919" y="530" width="617" height="100" rx="10" fill="#f8fafc" stroke="#e2e8f0" />
+<text x="939" y="562" font-size="18" fill="#0f172a" font-weight="600" text-anchor="start" >First-hit and final goal (2)</text>
+<text x="939" y="599" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="8">-2 0</text>
+<text x="1224" y="599" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="9">4 0</text>
+<rect x="919" y="645" width="617" height="205" rx="10" fill="#f8fafc" stroke="#e2e8f0" />
+<text x="939" y="677" font-size="18" fill="#0f172a" font-weight="600" text-anchor="start" >Distinct complete states (3)</text>
+<text x="939" y="715" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="10">-1 -3 -6 0</text>
+<text x="939" y="753" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="11">-2 -4 -6 0</text>
+<text x="939" y="791" font-size="21" fill="#7c3aed" font-weight="500" text-anchor="start" font-family="ui-monospace,monospace" data-clause="12">6 0</text>
+<path d="M460 440 H485" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
+<path d="M870 440 H895" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
+<rect x="40" y="910" width="1520" height="58" rx="14" fill="#eff6ff" stroke="#dbeafe" />
+<text x="64" y="947" font-size="18" fill="#1e40af" font-weight="400" text-anchor="start" >A negative literal means NOT. DIMACS 0 ends a clause. Guard/Effect 0 does not mean a false state.</text>
+</g></svg>

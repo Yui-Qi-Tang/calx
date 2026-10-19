@@ -1,5 +1,8 @@
 # Public and CLI contracts
 
+See the [data-structure reference](data-structures.md) for complete fields and
+[graph-to-matrix walkthrough](graph-to-matrix.md) for a worked projection.
+
 ## Topology
 
 `incidence.Graph` uses nonempty UTF-8 string node/edge IDs and relation labels.
@@ -35,11 +38,14 @@ exhaustion and cancellation are errors, never UNSAT. Context is checked at
 stages and during clause construction; this is not a hard CPU quota.
 
 Compile's private formula and decoding map are owned by the Encoding. CNF and
-Variables accessors return copies. Decode requires a total assignment checked
+Variables accessors return copies and an error; nil/uninitialized encodings
+are rejected. Digest also returns `(string, error)`. Variable kinds,
+model membership and role-specific optional fields are validated; see
+[explicit error and variable contracts](error-handling.md). Decode requires a total assignment checked
 against the owned original formula. Its trace is not independent original-rule
 validation or an execution receipt. Inputs must not be mutated concurrently.
 
-QuerySHA256 hashes compact Go JSON of `{model,query}`, including profile,
+Digest identifies the serialized model and query, including profile,
 horizon and blocking. Order-sensitive lists remain order-sensitive. It binds
 this serialization, not mathematical equivalence or cross-language canonical
 JSON. Native textual names are UTF-8-validated to prevent lossy JSON conversion.

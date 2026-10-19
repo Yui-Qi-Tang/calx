@@ -55,7 +55,10 @@ func TestEmptyAndMalformed(t *testing.T) {
 		t.Fatal(e)
 	}
 	for _, mutate := range []func(*incidence.Projection){func(p *incidence.Projection) { p.Source[1][0] = 1 }, func(p *incidence.Projection) { p.Target[1][0] = 2 }, func(p *incidence.Projection) { p.RelationMasks["extra"] = []int{1} }, func(p *incidence.Projection) { p.NodeIDs[1] = "a" }, func(p *incidence.Projection) { p.Source = nil }} {
-		p, _ := incidence.Project(g, incidence.Limits{})
+		p, err := incidence.Project(g, incidence.Limits{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		mutate(&p)
 		if _, e := p.Graph(incidence.Limits{}); !errors.Is(e, incidence.ErrInput) {
 			t.Fatal(p, e)

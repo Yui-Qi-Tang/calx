@@ -1,4 +1,51 @@
-# Validation — 2026-10-18
+# Validation
+
+## Validation checkpoint — 2026-10-19
+
+Observed locally on darwin/arm64 with Go 1.27.2. This revision replaces the
+maintained Python compatibility script with Go, validates variable roles and
+returns compiler, serialization and artifact I/O errors explicitly.
+This checkpoint predates removal of the external graph integration example;
+the example and diagram results below describe the files at that time.
+
+| Check | Observed result |
+| --- | --- |
+| `make verify` | PASS: formatting, pinned strict errcheck, uncached tests, vet and build |
+| `make race` | PASS: full selection with `-race -p 1 -count=1` |
+| Real pinned CaDiCaL/DRAT-trim | 522/522 subtests PASS after the error-handling changes |
+| Finite semantics | Existing independent DFS comparison over 511 models × horizons 0–3 still passes |
+| Error and role regressions | Invalid variable roles/references/times, cancellation, limits, nil/zero receivers, no partial Encoding on failure, deep-copy ownership, inspectable I/O/JSON errors and failed output writes pass |
+| Go consumer command | Core 1, MCP 1 and Pouch Product 3 selected native-source tests PASS; source hashes rechecked |
+| Lab frozen-input compatibility | 13 H2/H6 CNFs PASS with checked SAT/UNSAT and matching source hashes; no fresh Lab encoder or semantic replay |
+| CLI checks | Finite solve and unsupported typed-input rejection PASS |
+| README examples | Graph projection runs; H1 SAT returns off → enable → on; H0 UNSAT passes proof checking |
+| Documentation | Three Go examples match runnable source; all five SVGs parse/render; 24 topology cells, five operation-matrix cells, six variables and 13 clauses match live computation |
+
+The public accessor signatures now include errors; see
+[error-handling contracts](error-handling.md). The strict checker covers the
+maintained root packages and examples, including resolver-integration code.
+At this checkpoint it also checked the now-removed external graph example module.
+Source snapshots from external
+consumers and ignored historical artifacts are not part of that source lint scope.
+
+The Go-only compatibility scope is documented in [compatibility](compatibility.md).
+It preserves historical Lab inputs without copying or executing Python. It does
+not claim that frozen formulas validate a newly executed Lab lowering or replay.
+The four formal consumers remain unchanged.
+
+Current local evidence (ignored):
+
+- `artifacts/go-quality/verify-final.log`, `race-final.log` and `docs.json`
+- `artifacts/acceptance-go-errors-20261019/real-tools.jsonl`
+- `artifacts/go-consumers-final/results.json` and `source-manifest.json`
+- `artifacts/go-quality/example-sat.json`, `example-unsat.json` and `graph-example.json`
+- `artifacts/go-example-sat-final/` and `artifacts/go-example-unsat-final/`
+
+The tool pins below are unchanged. Codebase-memory was refreshed; its artifacts
+remain ignored. The SVGs are deliberately excluded by the indexer and were
+checked directly rather than treated as graph-covered source.
+
+## Historical foundation checkpoint — 2026-10-18
 
 Observed locally on darwin/arm64 with Go 1.27.2 and Python 3.14.8.
 This is an experimental library delivery, not a release or consumer migration.
@@ -42,8 +89,9 @@ checks do not establish arbitrary-scale performance or general solver reliabilit
   execution; the main agent verified and fixed the issue.
 - Consumer attempt 01 used system Python 3.9.6. Core/MCP/Product passed, then the
   H6 encoder stopped because `zip(strict=True)` requires newer Python. Attempt 02
-  uses Python 3.14.8 and all selected boundaries pass. The harness now checks its
-  Python prerequisite before creating output. Original attempt 01 is retained.
+  used Python 3.14.8 and all selected boundaries passed. At that checkpoint the
+  legacy harness checked its Python prerequisite before creating output. The
+  current command is Go-only; original attempt 01 is retained.
 - The initial parallel full race run hit the inherited one-second shell fixture
   deadline in TestArtifactArchivalBoundary. The full run passed with package
   serialization. No assertion, solver timeout or fixture timeout was relaxed.

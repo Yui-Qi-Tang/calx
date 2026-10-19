@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="970" viewBox="0 0 1600 970" role="img" aria-labelledby="title desc"><title id="title">From solver result to an application-facing trace</title><desc id="desc">The consumer checks errors and answer-specific guarantees before interpreting any result.</desc><defs>
+<marker id="gray" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#94a3b8"/></marker>
+<marker id="blue" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#2563eb"/></marker>
+<marker id="teal" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#0f766e"/></marker>
+<marker id="purple" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#7c3aed"/></marker>
+<marker id="amber" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b45309"/></marker>
+<marker id="red" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b91c1c"/></marker>
+</defs><g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+<rect width="1600" height="970" fill="#f8fafc"/>
+<text x="40" y="55" font-size="32" fill="#0f172a" font-weight="700" text-anchor="start" >From solver result to an application-facing trace</text>
+<text x="40" y="94" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >The consumer checks errors and answer-specific guarantees before interpreting any result.</text>
+<rect x="40" y="145" width="450" height="460" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M58 163 V587" stroke="#7c3aed" stroke-width="4" stroke-linecap="round"/>
+<text x="74" y="183" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >cadical.Result (SAT example)</text>
+<text x="74" y="215" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Status: SAT</text>
+<text x="74" y="242" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Model: present / decoded / checked</text>
+<text x="74" y="269" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Proof.Checked: false</text>
+<text x="74" y="296" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Assignment: {1:true, 2:false, …}</text>
+<text x="74" y="323" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >InputSHA256 / FormulaSHA256</text>
+<text x="74" y="350" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >SolverSHA256 / CheckerSHA256</text>
+<text x="74" y="377" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Artifacts: relative IDs + hashes</text>
+<text x="74" y="475" font-size="17" fill="#0f766e" font-weight="600" text-anchor="start" >Result for the CNF submitted in this call.</text>
+<text x="74" y="530" font-size="18" fill="#b91c1c" font-weight="600" text-anchor="start" >Solve also returns error separately.</text>
+<text x="74" y="562" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >A SAT label alone is insufficient.</text>
+<rect x="40" y="645" width="450" height="180" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M58 663 V807" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+<text x="74" y="683" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >Retained finite.Encoding</text>
+<text x="74" y="715" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Owned original CNF</text>
+<text x="74" y="742" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >State / action variable mapping</text>
+<text x="74" y="769" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Digest identifies model/query</text>
+<text x="540" y="128" font-size="15" fill="#0f766e" font-weight="600" text-anchor="start" >CONSUMER LOGIC: examples/solve AND THE CLI</text>
+<rect x="540" y="145" width="455" height="110" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M558 163 V237" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+<text x="574" y="183" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >1. Check err first</text>
+<text x="574" y="215" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Proceed only when err == nil</text>
+<rect x="1100" y="145" width="460" height="110" rx="14" fill="#fff7f7" stroke="#e2e8f0" />
+<path d="M1118 163 V237" stroke="#b91c1c" stroke-width="4" stroke-linecap="round"/>
+<text x="1134" y="183" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >Stop on error</text>
+<text x="1134" y="215" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Keep partial data for diagnosis</text>
+<path d="M490 205 H540" fill="none" stroke="#94a3b8" stroke-width="2.5"  marker-end="url(#gray)"/>
+<path d="M995 205 H1100" fill="none" stroke="#b91c1c" stroke-width="2.5"  marker-end="url(#red)"/>
+<text x="1020" y="190" font-size="15" fill="#b91c1c" font-weight="600" text-anchor="start" >non-nil</text>
+<path d="M767 255 V310" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
+<text x="782" y="286" font-size="15" fill="#0f766e" font-weight="600" text-anchor="start" >nil</text>
+<rect x="540" y="310" width="455" height="150" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M558 328 V442" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+<text x="574" y="348" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >2. Result.Require</text>
+<text x="574" y="380" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >SATModelChecked: true</text>
+<text x="574" y="407" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >UNSATProofChecked: true</text>
+<text x="574" y="434" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Checks the relevant answer branch</text>
+<rect x="1100" y="310" width="460" height="150" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M1118 328 V442" stroke="#b45309" stroke-width="4" stroke-linecap="round"/>
+<text x="1134" y="348" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >Reject unmet guarantees</text>
+<text x="1134" y="380" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >UNKNOWN always fails Require</text>
+<text x="1134" y="407" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Claimed flags are not authentication</text>
+<path d="M995 385 H1100" fill="none" stroke="#b45309" stroke-width="2.5"  marker-end="url(#amber)"/>
+<text x="1013" y="370" font-size="15" fill="#b45309" font-weight="600" text-anchor="start" >error</text>
+<path d="M767 460 V525" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
+<text x="783" y="495" font-size="15" fill="#0f766e" font-weight="600" text-anchor="start" >checked SAT</text>
+<path d="M995 430 H1055 V605 H1100" fill="none" stroke="#7c3aed" stroke-width="2.5"  marker-end="url(#purple)"/>
+<text x="1068" y="499" font-size="15" fill="#7c3aed" font-weight="600" text-anchor="start" >checked UNSAT</text>
+<rect x="540" y="525" width="455" height="170" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M558 543 V677" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+<text x="574" y="563" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >3. Encoding.Decode</text>
+<text x="574" y="595" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >CheckAssignment on the owned CNF</text>
+<text x="574" y="622" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Decode true state/action variables</text>
+<text x="574" y="649" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Produce complete states + actions</text>
+<rect x="1100" y="525" width="460" height="170" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M1118 543 V677" stroke="#7c3aed" stroke-width="4" stroke-linecap="round"/>
+<text x="1134" y="563" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >UNSAT result</text>
+<text x="1134" y="595" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >No trace to decode</text>
+<text x="1134" y="622" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >No satisfying assignment for this CNF</text>
+<text x="1134" y="649" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Interpret the exact query and bounds</text>
+<path d="M490 735 H515 V610 H540" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#teal)"/>
+<path d="M767 695 V755" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
+<rect x="540" y="755" width="1020" height="85" rx="14" fill="white" stroke="#e2e8f0" />
+<path d="M558 773 V822" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+<text x="574" y="793" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >Trace: [off, on] with action [enable]</text>
+<text x="574" y="825" font-size="17" fill="#334155" font-weight="400" text-anchor="start" >Caller independently replays its original rules before accepting an application result.</text>
+<rect x="40" y="880" width="1520" height="58" rx="14" fill="#eff6ff" stroke="#dbeafe" />
+<text x="64" y="916" font-size="17" fill="#1e40af" font-weight="400" text-anchor="start" >CLI envelope: outcome + data + error. Raw transport input, typed CNF, emitted formula and model/query have distinct digests.</text>
+</g></svg>

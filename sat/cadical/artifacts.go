@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,20 +13,32 @@ import (
 )
 
 // Identity binds tool binaries and effective limits, excluding storage paths.
-// Consumers can use it to invalidate results when execution settings change.
-func (r *Runner) Identity() string {
-	b, _ := json.Marshal(struct {
+// It returns an error for an uninitialized runner or failed serialization.
+func (r *Runner) Identity() (string, error) {
+	if r == nil || r.root == "" {
+		return "", fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
+	}
+	raw, err := json.Marshal(struct {
 		Solver, Checker string
 		Limits          sat.Limits
 		ProofLimit      int64
-	}{r.config.SolverSHA256, r.config.CheckerSHA256, r.config.Limits, r.config.MaxProofBytes})
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	}{
+		Solver: r.config.SolverSHA256, Checker: r.config.CheckerSHA256,
+		Limits: r.config.Limits, ProofLimit: r.config.MaxProofBytes,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encoding runner identity: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
 }
 
-// ReadArtifact reads a retained artifact through the runner's root and verifies
-// its recorded size and digest. It supports durable consumer-owned archival.
-func (r *Runner) ReadArtifact(a sat.Artifact) ([]byte, error) {
+// ReadArtifact reads retained bytes and verifies size and digest. Close errors
+// are joined with any read/validation error before returning to the consumer.
+func (r *Runner) ReadArtifact(a sat.Artifact) (data []byte, err error) {
+	if r == nil || r.root == "" {
+		return nil, fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
+	}
 	limit := max(r.config.MaxProofBytes, int64(r.config.Limits.MaxInputBytes), int64(r.config.Limits.MaxOutputBytes))
 	if a.Bytes < 0 || a.Bytes > limit {
 		return nil, sat.ErrLimit
@@ -34,7 +47,7 @@ func (r *Runner) ReadArtifact(a sat.Artifact) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	info, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -42,13 +55,13 @@ func (r *Runner) ReadArtifact(a sat.Artifact) ([]byte, error) {
 	if !info.Mode().IsRegular() || info.Size() != a.Bytes {
 		return nil, fmt.Errorf("%w: artifact size", sat.ErrValidation)
 	}
-	b, err := io.ReadAll(io.LimitReader(f, a.Bytes+1))
+	data, err = io.ReadAll(io.LimitReader(f, a.Bytes+1))
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(b)
-	if int64(len(b)) != a.Bytes || hex.EncodeToString(sum[:]) != a.SHA256 {
+	sum := sha256.Sum256(data)
+	if int64(len(data)) != a.Bytes || hex.EncodeToString(sum[:]) != a.SHA256 {
 		return nil, fmt.Errorf("%w: artifact digest", sat.ErrValidation)
 	}
-	return b, nil
+	return data, nil
 }

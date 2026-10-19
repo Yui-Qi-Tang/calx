@@ -48,7 +48,15 @@ func TestArtifactArchivalBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.Identity() != r.Identity() {
+	firstID, err := r.Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondID, err := second.Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondID != firstID {
 		t.Fatal("storage path changes execution identity")
 	}
 	cfg.Limits.Timeout *= 2
@@ -57,7 +65,25 @@ func TestArtifactArchivalBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if third.Identity() == r.Identity() {
+	thirdID, err := third.Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if thirdID == firstID {
 		t.Fatal("limits omitted from identity")
+	}
+}
+
+func TestUninitializedRunnerReturnsErrors(t *testing.T) {
+	for _, runner := range []*Runner{nil, new(Runner)} {
+		if _, err := runner.Identity(); err == nil {
+			t.Fatal("uninitialized identity accepted")
+		}
+		if _, err := runner.ReadArtifact(sat.Artifact{}); err == nil {
+			t.Fatal("uninitialized artifact reader accepted")
+		}
+		if _, err := runner.Solve(context.Background(), "q", sat.CNF{}); err == nil {
+			t.Fatal("uninitialized solver accepted")
+		}
 	}
 }

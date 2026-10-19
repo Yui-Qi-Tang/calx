@@ -1,31 +1,45 @@
 # Bounded consumer conformance
 
-The consumers remain unchanged. `scripts/check_consumers.py` requires Python
-3.10+ (validated with 3.14), explicit source roots and a new output directory.
-It snapshots selected source files, records their SHA256s, and builds external
-Go modules with a local replace pointing at this Calx checkout. Those temporary
-replaces and copies are confined to the ignored output.
+`go run ./cmd/calx-check-consumers` runs compatibility checks using Go only.
+The four formal consumers remain unchanged. The command accepts explicit source
+roots and a new output directory; it never copies, imports or executes Python.
 
 ```sh
-python3.14 scripts/check_consumers.py \
+go run ./cmd/calx-check-consumers \
   --core "$AHE_CORE_ROOT" --mcp "$AHE_MCP_ROOT" \
   --pouch "$POUCH_PRODUCT_ROOT" --lab "$POUCH_LAB_ROOT" \
   --out artifacts/consumer-check-NEW
 ```
 
-Set CALX_CADICAL, CALX_CADICAL_SHA256, CALX_DRAT and CALX_DRAT_SHA256 first.
-The script builds its own CLI binary from the current source.
+Set CALX_CADICAL, CALX_CADICAL_SHA256, CALX_DRAT and CALX_DRAT_SHA256 to the
+trusted executable paths and pins first. `--calx` defaults to the current
+checkout, and `--timeout` bounds the entire check (default ten minutes).
 
-| Boundary | What runs | Excluded scope |
+The command creates a CLI binary and isolated external Go modules in the output.
+It uses the Go parser to select AHE compiler declarations, records source hashes,
+and supplies a local replace to the Calx checkout. Logs, temporary replacements,
+source snapshots and tool artifacts stay in the ignored output. The output must
+be outside all four consumer roots. Source identities are rechecked before return.
+
+| Boundary | What runs now | Excluded scope |
 | --- | --- | --- |
-| AHE Core and MCP | Actual compileConsistency and consistencyText function bodies, source condition types, minimal in-memory scope stubs; compatible/conflicting formulas and incomplete-input rejection; real checked solver | DB scope reader, currentness, RLS, persistence, admission, deployed MCP |
-| Pouch Product | Source planning/validation/projection in an external module; exact DIMACS comparison for horizons 0–3; native Search through a Calx adapter; forward and return original-rule replay; topology matrices against the original projection | Full CLI, deployment, governance/network calls, real repair/execution |
-| Pouch Lab | Source H2 guard queries (8), H6 signed/copy encoder at horizons 0–4 (5), Python→CLI checked solve; SAT trace decoded by Lab and replayed by its separate original reference; typed input rejected by finite v1 | All Lab profiles, historical-proof import, H19 typed/copy lowering into finite v1, new research or model scoring |
+| AHE Core and MCP | Actual compileConsistency/consistencyText bodies and condition types, minimal in-memory reader stubs; compatible/conflicting formulas, incomplete-input rejection and real checked solver | DB scope reader, currentness, RLS, persistence, admission and deployed MCP |
+| Pouch Product | Source planning/validation/projection in an external Go module; exact DIMACS at horizons 0–3; native Search through Calx; forward/return original-rule replay; topology comparison | Full CLI/governance deployment and real repair execution |
+| Pouch Lab | 13 frozen H2/H6 DIMACS inputs with per-file digests, expected status and matching original source hashes; real CLI SAT/proof checks | Fresh Lab encoder execution, fresh Lab semantic replay, all Lab profiles and typed/copy lowering into finite v1 |
 
-The H6 path remains Lab encoder → DIMACS → Calx SAT, not a claim that finite v1
-supports copy effects. Independent receivers are not replaced by Calx.
-The standalone solve-finite example is also exercised through the CLI.
+The Lab fixtures are the exact 8 H2 and 5 H6 inputs from the prior accepted
+conformance run. Their source identities and provenance are retained in
+[testdata/lab](../internal/consumercheck/testdata/lab/README.md). Source files in
+the Lab checkout are only read to check their hashes. A mismatch stops the check;
+it does not silently regenerate or replace the frozen formulas.
 
-Source attribution and current checkpoints are recorded with each run. Source
-snapshots and output byte hashes are conformance evidence for that snapshot;
-passing this harness is not native adoption or release authorization.
+This Go-only boundary is intentionally reported as **frozen CNF compatibility**.
+The earlier Python-based run executed the original Lab encoder and reference
+replay. That historical evidence is retained, but those operations are not
+claimed for the new Go command. Calx does not reimplement the Lab's semantic
+interpreter merely to remove a tooling dependency.
+
+The standalone finite CLI and rejection of unsupported typed input are also
+checked. A successful command produces results.json, source-manifest.json and
+per-command stdout/stderr/exit records. Failure returns an error and retains
+partial check results. Passing these selected checks is not native adoption.

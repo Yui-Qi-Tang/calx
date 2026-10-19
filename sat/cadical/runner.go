@@ -70,6 +70,9 @@ func New(c Config) (*Runner, error) {
 // Solve retains exact inputs, metadata, output and check records. All processes
 // share one deadline. It never silently fills an incomplete assignment.
 func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Result, err error) {
+	if r == nil || r.root == "" {
+		return Result{Result: sat.Result{Status: sat.Unknown}}, fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
+	}
 	result.Result = sat.Result{Status: sat.Unknown, Profile: "cnf/v0", SolverSHA256: r.config.SolverSHA256, CheckerSHA256: r.config.CheckerSHA256}
 	ctx, cancel := context.WithTimeout(ctx, r.config.Limits.Timeout)
 	defer cancel()
@@ -135,7 +138,10 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 	case process.ExitCode == 20 && exactLine(stdout, "s UNSATISFIABLE") && !exactLine(stdout, "s SATISFIABLE") && !exactLine(stdout, "s UNKNOWN"):
 		result.Status = sat.UNSAT
 		proof, statErr := os.Lstat(filepath.Join(dir, "proof.drat"))
-		if statErr != nil || !proof.Mode().IsRegular() {
+		if statErr != nil {
+			return result, fmt.Errorf("%w: inspecting proof: %w", sat.ErrProtocol, statErr)
+		}
+		if !proof.Mode().IsRegular() {
 			return result, fmt.Errorf("%w: missing regular proof", sat.ErrProtocol)
 		}
 		result.Proof.Present = true

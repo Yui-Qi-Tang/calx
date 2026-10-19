@@ -6,6 +6,55 @@ third-party Go dependency. `sat/cadical` uses `internal/toolrun` and `sat`;
 `finite` uses `sat`; `incidence` is independent of both. CLI wiring lives in
 `internal/cli` and `cmd/calx`.
 
+## Package dependencies
+
+Arrows mean “imports”; consumers choose the packages they need.
+
+```mermaid
+flowchart TD
+    Consumer["Consumer Go program"] --> Incidence["incidence"]
+    Consumer --> Finite["finite"]
+    Consumer --> Cadical["sat/cadical"]
+    CLI["cmd/calx + internal/cli"] --> Incidence
+    CLI --> Finite
+    CLI --> Cadical
+    Finite --> SAT["sat"]
+    Cadical --> SAT
+    Cadical --> Toolrun["internal/toolrun"]
+    Toolrun --> SAT
+```
+
+## Data flow
+
+The [illustrated internal execution flow](execution-flow.md) follows concrete
+functions, an exact CNF example, solver verification and result decoding.
+
+Arrows here mean “produces or supplies data.” The two matrix routes have
+separate inputs and meanings.
+
+```mermaid
+flowchart LR
+    Graph["Explicit graph topology"] --> Project["incidence.Project"]
+    Project --> Projection["Source / Target / axes / relation masks"]
+    Projection --> Reconstruct["Projection.Graph"] --> Rebuilt["Reconstructed topology"]
+    Model["Categorical model + explicit query"] --> Compile["finite.Compile"]
+    Compile --> Encoding["Owned Encoding: operation matrix + CNF + map"]
+    Encoding --> CNF["CNF copy"]
+    Declared["Consumer-supplied CNF"] --> CNF
+    CNF --> Solve["Runner.Solve + model/proof checks"]
+    Solve --> Result["Status + validation + artifacts"]
+    Result -->|SAT assignment| Decode["Encoding.Decode"]
+    Encoding --> Decode
+    Decode --> Trace["Model trace"]
+```
+
+The finite Decode route requires its matching Encoding. A raw CNF consumer uses
+its own interpretation map. Full structures and JSON fields are documented in
+[data structures](data-structures.md); see [graph-to-matrix](graph-to-matrix.md)
+for the topology projection steps.
+
+## Matrix meanings
+
 Two matrix meanings are deliberately explicit:
 
 - `incidence.Projection`: node rows, independently identified edge columns,

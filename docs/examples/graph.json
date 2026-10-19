@@ -1,0 +1,8 @@
+{
+  "node_ids": ["c", "a", "b"],
+  "edges": [
+    {"id": "e3", "from": "b", "to": "b", "relation": "loops"},
+    {"id": "e2", "from": "a", "to": "b", "relation": "connects"},
+    {"id": "e1", "from": "a", "to": "b", "relation": "connects"}
+  ]
+}

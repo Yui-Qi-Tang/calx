@@ -143,7 +143,7 @@ func TestExhaustiveThreeStateTransitionSystems(t *testing.T) {
 				if err != nil {
 					t.Fatal(mask, h, err)
 				}
-				a, ok := solve(e.CNF())
+				a, ok := solve(checkedCNF(t, e))
 				if !ok {
 					break
 				}
@@ -173,11 +173,11 @@ func TestValidationAndBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, ok := solve(e.CNF())
+	a, ok := solve(checkedCNF(t, e))
 	if !ok {
 		t.Fatal("expected path")
 	}
-	formula := e.CNF()
+	formula := checkedCNF(t, e)
 	formula.Clauses[0][0] = 0
 	formula.Variables[0].Metadata["finite_variable"] = "changed"
 	if _, err := e.Decode(a); err != nil {
@@ -188,10 +188,18 @@ func TestValidationAndBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if blocked.QuerySHA256() == e.QuerySHA256() {
+	blockedHash, err := blocked.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalHash, err := e.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blockedHash == originalHash {
 		t.Fatal("unbound blocking")
 	}
-	if _, ok := solve(blocked.CNF()); ok {
+	if _, ok := solve(checkedCNF(t, blocked)); ok {
 		t.Fatal("blocked query SAT")
 	}
 	for name, edit := range map[string]func(*finite.Model, *finite.Query){
@@ -239,7 +247,10 @@ func TestMatrixRoundTripAndFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, _ := finite.Project(back)
+	again, err := finite.Project(back)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(p, again) {
 		t.Fatal("matrix roundtrip")
 	}
@@ -248,7 +259,7 @@ func TestMatrixRoundTripAndFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, ok := solve(e.CNF())
+	a, ok := solve(checkedCNF(t, e))
 	if !ok {
 		t.Fatal("SAT expected")
 	}
@@ -266,8 +277,17 @@ func ExampleCompile() {
 	m := finite.Model{Fields: map[string][]string{"state": {"off", "on"}}, Actions: []finite.Action{{ID: "enable", Guard: finite.State{"state": "off"}, Effect: finite.State{"state": "on"}}}}
 	q := finite.Query{Profile: finite.Profile, Start: finite.State{"state": "off"}, Goal: finite.State{"state": "on"}, Horizon: 1}
 	e, err := finite.Compile(context.Background(), m, q, finite.Options{})
-	fmt.Println(err, len(e.CNF().Variables) > 0)
-	// Output: <nil> true
+	if err != nil {
+		panic(err)
+	}
+	cnf, err := e.CNF()
+	if err != nil {
+		panic(err)
+	}
+	if _, err := fmt.Println(len(cnf.Variables) > 0); err != nil {
+		panic(err)
+	}
+	// Output: true
 }
 
 func TestNativeInputIsolationAndUTF8(t *testing.T) {
@@ -276,7 +296,7 @@ func TestNativeInputIsolationAndUTF8(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, ok := solve(e.CNF())
+	a, ok := solve(checkedCNF(t, e))
 	if !ok {
 		t.Fatal("expected SAT")
 	}
@@ -289,7 +309,10 @@ func TestNativeInputIsolationAndUTF8(t *testing.T) {
 	m.Actions[0].Effect["x"] = "mutated"
 	q.Start["x"] = "mutated"
 	q.Goal["x"] = "mutated"
-	v := e.Variables()
+	v, err := e.Variables()
+	if err != nil {
+		t.Fatal(err)
+	}
 	v[0].Value = "mutated"
 	after, err := e.Decode(a)
 	if err != nil || !reflect.DeepEqual(before, after) {
@@ -315,7 +338,7 @@ func TestZeroHorizonBlockingAndForbiddenStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, ok := solve(e.CNF())
+	a, ok := solve(checkedCNF(t, e))
 	if !ok {
 		t.Fatal("zero-step goal must be SAT")
 	}
@@ -328,7 +351,7 @@ func TestZeroHorizonBlockingAndForbiddenStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := solve(e.CNF()); ok {
+	if _, ok := solve(checkedCNF(t, e)); ok {
 		t.Fatal("empty action sequence was not blocked")
 	}
 	q = query(1)
@@ -337,7 +360,16 @@ func TestZeroHorizonBlockingAndForbiddenStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := solve(e.CNF()); ok {
+	if _, ok := solve(checkedCNF(t, e)); ok {
 		t.Fatal("forbidden goal was accepted")
 	}
+}
+
+func checkedCNF(t *testing.T, encoding *finite.Encoding) sat.CNF {
+	t.Helper()
+	formula, err := encoding.CNF()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return formula
 }

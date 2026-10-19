@@ -90,8 +90,7 @@ func code(err error) string {
 // SAT/UNSAT labels may still appear in diagnostic data on a failed command.
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: calx project|reconstruct|encode|decode|solve|solve-finite [flags]")
-		return 2
+		return report(stderr, "usage: calx project|reconstruct|encode|decode|solve|solve-finite [flags]", 2)
 	}
 	cmd := args[0]
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
@@ -109,18 +108,15 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(stderr, "unexpected positional arguments")
-		return 2
+		return report(stderr, "unexpected positional arguments", 2)
 	}
 	switch cmd {
 	case "project", "reconstruct", "encode", "decode", "solve", "solve-finite":
 	default:
-		fmt.Fprintln(stderr, "unknown command")
-		return 2
+		return report(stderr, "unknown command", 2)
 	}
 	if *format != "json" && !(cmd == "solve" && *format == "dimacs") {
-		fmt.Fprintln(stderr, "unsupported input format")
-		return 2
+		return report(stderr, "unsupported input format", 2)
 	}
 	var raw []byte
 	var err error
@@ -135,7 +131,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		}
 	}
 	if len(raw) > maxInput {
-		err = sat.ErrLimit
+		err = errors.Join(err, sat.ErrLimit)
 	}
 	out := response{Outcome: "ERROR", InputSHA256: digest(raw)}
 	if err == nil {
@@ -149,11 +145,18 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		out.Outcome = "OK"
 	}
 	if e := emit(stdout, out); e != nil {
-		fmt.Fprintln(stderr, e)
-		return 1
+		return report(stderr, e.Error(), 1)
 	}
 	return exit
 }
+
+func report(w io.Writer, message string, exitCode int) int {
+	if _, err := fmt.Fprintln(w, message); err != nil {
+		return 1
+	}
+	return exitCode
+}
+
 func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Config, id string) (any, error) {
 	switch cmd {
 	case "project":
@@ -190,6 +193,7 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 	}
 	var c sat.CNF
 	var e *finite.Encoding
+	var queryHash string
 	var err error
 	if cmd == "encode" || cmd == "solve-finite" {
 		var in finiteRequest
@@ -200,8 +204,19 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 		if err != nil {
 			return nil, err
 		}
-		c = e.CNF()
+		c, err = e.CNF()
+		if err != nil {
+			return nil, err
+		}
+		queryHash, err = e.Digest()
+		if err != nil {
+			return nil, err
+		}
 		if cmd == "encode" {
+			variables, err := e.Variables()
+			if err != nil {
+				return nil, err
+			}
 			var b bytes.Buffer
 			if err = c.WriteDIMACS(&b); err != nil {
 				return nil, err
@@ -211,7 +226,7 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 				CNF         sat.CNF           `json:"cnf"`
 				Variables   []finite.Variable `json:"variables"`
 				DIMACS      string            `json:"dimacs"`
-			}{e.QuerySHA256(), c, e.Variables(), b.String()}, nil
+			}{QuerySHA256: queryHash, CNF: c, Variables: variables, DIMACS: b.String()}, nil
 		}
 	} else if format == "dimacs" {
 		c, err = sat.ReadDIMACS(bytes.NewReader(raw), sat.Limits{})
@@ -246,10 +261,7 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 		Result      cadical.Result `json:"result"`
 		QuerySHA256 string         `json:"query_sha256,omitempty"`
 		Trace       *finite.Trace  `json:"trace,omitempty"`
-	}{Result: result}
-	if e != nil {
-		data.QuerySHA256 = e.QuerySHA256()
-	}
+	}{Result: result, QuerySHA256: queryHash}
 	if err == nil {
 		err = result.Require(sat.Requirements{SATModelChecked: true, UNSATProofChecked: true})
 	}
