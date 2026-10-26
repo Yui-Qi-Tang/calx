@@ -74,7 +74,7 @@ func (s *session) module(dir, module string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	data := "module " + module + "\n\ngo 1.27.2\n\nrequire github.com/Yui-Qi-Tang/calx v0.0.0\n\nreplace github.com/Yui-Qi-Tang/calx => " + strconv.Quote(filepath.ToSlash(s.config.CalxDir)) + "\n"
+	data := "module " + module + "\n\ngo 1.27.3\n\nrequire github.com/Yui-Qi-Tang/calx v0.0.0\n\nreplace github.com/Yui-Qi-Tang/calx => " + strconv.Quote(filepath.ToSlash(s.config.CalxDir)) + "\n"
 	return os.WriteFile(filepath.Join(dir, "go.mod"), []byte(data), 0600)
 }
 
