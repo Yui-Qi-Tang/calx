@@ -127,54 +127,70 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		return result, err
 	}
 	switch {
-	case process.ExitCode == 10 && exactLine(stdout, "s SATISFIABLE") && !exactLine(stdout, "s UNSATISFIABLE") && !exactLine(stdout, "s UNKNOWN"):
+	case process.ExitCode == 10 && soleStatus(stdout, "s SATISFIABLE"):
 		result.Status = sat.SAT
-		result.Model.Present = hasAssignment(stdout)
-		result.Assignment, err = assignment(stdout, len(cnf.Variables))
-		if err != nil {
-			return result, fmt.Errorf("%w: %v", sat.ErrProtocol, err)
-		}
-		result.Model.Decoded = true
-		if err = toolrun.WriteJSON(filepath.Join(dir, "assignment.json"), result.Assignment); err != nil {
-			return result, err
-		}
-		if err = cnf.CheckAssignment(result.Assignment); err != nil {
-			return result, fmt.Errorf("%w: %v", sat.ErrValidation, err)
-		}
-		result.Model.Checked = true
-		result.Model.Method = "total-assignment/every-input-clause/v0"
-		result.Model.TargetDigest = result.InputDigest
-	case process.ExitCode == 20 && exactLine(stdout, "s UNSATISFIABLE") && !exactLine(stdout, "s SATISFIABLE") && !exactLine(stdout, "s UNKNOWN"):
+		err = checkModel(dir, cnf, stdout, &result)
+	case process.ExitCode == 20 && soleStatus(stdout, "s UNSATISFIABLE"):
 		result.Status = sat.UNSAT
-		proof, statErr := os.Lstat(filepath.Join(dir, "proof.drat"))
-		if statErr != nil {
-			return result, fmt.Errorf("%w: inspecting proof: %w", sat.ErrProtocol, statErr)
-		}
-		if !proof.Mode().IsRegular() {
-			return result, fmt.Errorf("%w: missing regular proof", sat.ErrProtocol)
-		}
-		result.Proof.Present = true
-		if proof.Size() > r.config.MaxProofBytes {
-			return result, fmt.Errorf("%w: proof", sat.ErrLimit)
-		}
-		checked, checkErr := toolrun.Execute(ctx, dir, "checker", filepath.Join(r.root, "tools", "drat-trim"), r.config.Limits.MaxOutputBytes, "input.cnf", "proof.drat")
-		if checkErr != nil {
-			return result, checkErr
-		}
-		output, readErr := os.ReadFile(filepath.Join(dir, "checker.stdout"))
-		if readErr != nil {
-			return result, readErr
-		}
-		if checked.ExitCode != 0 || !exactLine(output, "s VERIFIED") || exactLine(output, "s NOT VERIFIED") {
-			return result, fmt.Errorf("%w: proof checker", sat.ErrValidation)
-		}
-		result.Proof.Checked = true
-		result.Proof.Method = "drat-trim/exit-zero-exact-verified"
-		result.Proof.TargetDigest = result.FormulaDigest
-	case process.ExitCode == 0 && exactLine(stdout, "s UNKNOWN") && !exactLine(stdout, "s SATISFIABLE") && !exactLine(stdout, "s UNSATISFIABLE"):
+		err = r.checkProof(ctx, dir, &result.Result)
+	case process.ExitCode == 0 && soleStatus(stdout, "s UNKNOWN"):
 		return result, errors.Join(sat.ErrInconclusive, ctx.Err())
 	default:
 		return result, sat.ErrProtocol
 	}
+	if err != nil {
+		return result, err
+	}
 	return result, ctx.Err()
+}
+
+// checkModel decodes the solver assignment and checks it against every clause.
+func checkModel(dir string, cnf sat.CNF, stdout []byte, result *Result) error {
+	result.Model.Present = hasAssignment(stdout)
+	var err error
+	result.Assignment, err = assignment(stdout, len(cnf.Variables))
+	if err != nil {
+		return fmt.Errorf("%w: %v", sat.ErrProtocol, err)
+	}
+	result.Model.Decoded = true
+	if err := toolrun.WriteJSON(filepath.Join(dir, "assignment.json"), result.Assignment); err != nil {
+		return err
+	}
+	if err := cnf.CheckAssignment(result.Assignment); err != nil {
+		return fmt.Errorf("%w: %v", sat.ErrValidation, err)
+	}
+	result.Model.Checked = true
+	result.Model.Method = "total-assignment/every-input-clause/v0"
+	result.Model.TargetDigest = result.InputDigest
+	return nil
+}
+
+// checkProof runs the pinned DRAT checker on the retained formula and proof.
+func (r *Runner) checkProof(ctx context.Context, dir string, result *sat.Result) error {
+	proof, err := os.Lstat(filepath.Join(dir, "proof.drat"))
+	if err != nil {
+		return fmt.Errorf("%w: inspecting proof: %w", sat.ErrProtocol, err)
+	}
+	if !proof.Mode().IsRegular() {
+		return fmt.Errorf("%w: missing regular proof", sat.ErrProtocol)
+	}
+	result.Proof.Present = true
+	if proof.Size() > r.config.MaxProofBytes {
+		return fmt.Errorf("%w: proof", sat.ErrLimit)
+	}
+	checked, err := toolrun.Execute(ctx, dir, "checker", filepath.Join(r.root, "tools", "drat-trim"), r.config.Limits.MaxOutputBytes, "input.cnf", "proof.drat")
+	if err != nil {
+		return err
+	}
+	output, err := os.ReadFile(filepath.Join(dir, "checker.stdout"))
+	if err != nil {
+		return err
+	}
+	if checked.ExitCode != 0 || !exactLine(output, "s VERIFIED") || exactLine(output, "s NOT VERIFIED") {
+		return fmt.Errorf("%w: proof checker", sat.ErrValidation)
+	}
+	result.Proof.Checked = true
+	result.Proof.Method = "drat-trim/exit-zero-exact-verified"
+	result.Proof.TargetDigest = result.FormulaDigest
+	return nil
 }

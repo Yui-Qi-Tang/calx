@@ -2,6 +2,7 @@ package sat
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -23,7 +24,7 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 	if len(raw) > l.MaxInputBytes {
 		return CNF{}, ErrLimit
 	}
-	scan := bufio.NewScanner(strings.NewReader(string(raw)))
+	scan := bufio.NewScanner(bytes.NewReader(raw))
 	scan.Buffer(make([]byte, 4096), l.MaxInputBytes)
 	c := CNF{}
 	header := false

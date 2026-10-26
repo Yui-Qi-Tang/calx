@@ -3,6 +3,7 @@
 package sat
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"unicode/utf8"
@@ -85,7 +86,7 @@ func (c CNF) CheckAssignment(values map[int]bool) error {
 		return err
 	}
 	if len(values) != len(c.Variables) {
-		return fmt.Errorf("assignment is not total")
+		return errors.New("assignment is not total")
 	}
 	for i := 1; i <= len(c.Variables); i++ {
 		if _, ok := values[i]; !ok {
@@ -98,9 +99,6 @@ func (c CNF) CheckAssignment(values map[int]bool) error {
 			id := lit
 			if id < 0 {
 				id = -id
-			}
-			if id < 1 || id > len(c.Variables) {
-				return fmt.Errorf("%w: invalid literal in clause %d", ErrInput, i)
 			}
 			if values[id] == (lit > 0) {
 				satisfied = true

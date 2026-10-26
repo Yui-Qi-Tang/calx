@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -98,15 +99,7 @@ func Project(g Graph, limits Limits) (Projection, error) {
 		index[id] = i
 	}
 	edges := slices.Clone(g.Edges)
-	slices.SortFunc(edges, func(a, b Edge) int {
-		if a.ID < b.ID {
-			return -1
-		}
-		if a.ID > b.ID {
-			return 1
-		}
-		return 0
-	})
+	slices.SortFunc(edges, func(a, b Edge) int { return strings.Compare(a.ID, b.ID) })
 	masks := map[string][]int{}
 	for i, e := range edges {
 		if e.ID == "" || !utf8.ValidString(e.ID) || e.Relation == "" || !utf8.ValidString(e.Relation) || (i > 0 && edges[i-1].ID == e.ID) {

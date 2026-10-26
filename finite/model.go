@@ -53,6 +53,17 @@ type Query struct {
 	Blocked [][]string `json:"blocked"`
 }
 
+// v1 support limits on input models and queries; see Options.
+const (
+	maxFields    = 16
+	maxValues    = 64
+	maxActions   = 64
+	maxForbidden = 256
+	maxStates    = 4096
+	maxHorizon   = 4095
+	maxNameBytes = 200
+)
+
 // Options bounds encoding work. Zero fields use SAT defaults. Input models are
 // capped at 16 fields, 64 values/field, 64 actions, 256 forbidden patterns and
 // 4096 Cartesian states; horizons are 0..4095. These are v1 support limits.
@@ -95,23 +106,23 @@ func valid(m Model, s State) bool {
 
 // Validate checks the supported model language independently of any authority.
 func (m Model) Validate() error {
-	if len(m.Fields) == 0 || len(m.Fields) > 16 || len(m.Actions) == 0 || len(m.Actions) > 64 || len(m.Forbidden) > 256 {
+	if len(m.Fields) == 0 || len(m.Fields) > maxFields || len(m.Actions) == 0 || len(m.Actions) > maxActions || len(m.Forbidden) > maxForbidden {
 		return fmt.Errorf("%w: model bounds", ErrInput)
 	}
 	size := 1
 	for f, vs := range m.Fields {
-		if f == "" || !utf8.ValidString(f) || len(f) > 200 || len(vs) == 0 || len(vs) > 64 {
+		if f == "" || !utf8.ValidString(f) || len(f) > maxNameBytes || len(vs) == 0 || len(vs) > maxValues {
 			return ErrInput
 		}
 		seen := map[string]bool{}
 		for _, v := range vs {
-			if v == "" || !utf8.ValidString(v) || len(v) > 200 || seen[v] {
+			if v == "" || !utf8.ValidString(v) || len(v) > maxNameBytes || seen[v] {
 				return ErrInput
 			}
 			seen[v] = true
 		}
 		size *= len(vs)
-		if size > 4096 {
+		if size > maxStates {
 			return fmt.Errorf("%w: domain size", ErrInput)
 		}
 	}
@@ -122,7 +133,7 @@ func (m Model) Validate() error {
 	}
 	ids := map[string]bool{}
 	for _, a := range m.Actions {
-		if a.ID == "" || !utf8.ValidString(a.ID) || len(a.ID) > 200 || ids[a.ID] || !partial(m, a.Guard) || len(a.Effect) == 0 || !partial(m, a.Effect) {
+		if a.ID == "" || !utf8.ValidString(a.ID) || len(a.ID) > maxNameBytes || ids[a.ID] || !partial(m, a.Guard) || len(a.Effect) == 0 || !partial(m, a.Effect) {
 			return fmt.Errorf("%w: action", ErrInput)
 		}
 		ids[a.ID] = true
@@ -146,7 +157,7 @@ func (q Query) validate(m Model, o Options) error {
 	if q.Profile != Profile {
 		return ErrUnsupported
 	}
-	if q.Horizon < 0 || q.Horizon >= 4096 || !valid(m, q.Start) || len(q.Goal) == 0 || !partial(m, q.Goal) {
+	if q.Horizon < 0 || q.Horizon > maxHorizon || !valid(m, q.Start) || len(q.Goal) == 0 || !partial(m, q.Goal) {
 		return fmt.Errorf("%w: query", ErrInput)
 	}
 	if len(q.Blocked) > o.MaxClauses {

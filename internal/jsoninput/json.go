@@ -4,6 +4,7 @@ package jsoninput
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -16,7 +17,7 @@ import (
 // trailing values. Omitted optional fields retain their documented zero values.
 func Decode(raw []byte, dst any) error {
 	if !utf8.Valid(raw) {
-		return fmt.Errorf("invalid UTF-8 JSON")
+		return errors.New("invalid UTF-8 JSON")
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
@@ -24,11 +25,11 @@ func Decode(raw []byte, dst any) error {
 		return err
 	}
 	if _, err := d.Token(); err != io.EOF {
-		return fmt.Errorf("trailing JSON data")
+		return errors.New("trailing JSON data")
 	}
 	t := reflect.TypeOf(dst)
 	if t == nil || t.Kind() != reflect.Pointer {
-		return fmt.Errorf("pointer destination required")
+		return errors.New("pointer destination required")
 	}
 	if err := shape(raw, t.Elem()); err != nil {
 		return err
@@ -37,14 +38,14 @@ func Decode(raw []byte, dst any) error {
 }
 func value(d *json.Decoder, depth int) error {
 	if depth > 64 {
-		return fmt.Errorf("JSON nesting limit")
+		return errors.New("JSON nesting limit")
 	}
 	tok, err := d.Token()
 	if err != nil {
 		return err
 	}
 	if tok == nil {
-		return fmt.Errorf("null is not supported")
+		return errors.New("null is not supported")
 	}
 	delim, ok := tok.(json.Delim)
 	if !ok {
@@ -60,7 +61,7 @@ func value(d *json.Decoder, depth int) error {
 			}
 			key, ok := k.(string)
 			if !ok || seen[key] {
-				return fmt.Errorf("duplicate or invalid JSON key")
+				return errors.New("duplicate or invalid JSON key")
 			}
 			seen[key] = true
 			if err := value(d, depth+1); err != nil {
@@ -74,7 +75,7 @@ func value(d *json.Decoder, depth int) error {
 			}
 		}
 	default:
-		return fmt.Errorf("invalid delimiter")
+		return errors.New("invalid delimiter")
 	}
 	_, err = d.Token()
 	return err
@@ -122,7 +123,7 @@ func shape(raw json.RawMessage, t reflect.Type) error {
 			if t.Key().Kind() == reflect.Int {
 				n, err := strconv.Atoi(key)
 				if err != nil || strconv.Itoa(n) != key {
-					return fmt.Errorf("noncanonical integer key")
+					return errors.New("noncanonical integer key")
 				}
 			}
 			if err := shape(v, t.Elem()); err != nil {

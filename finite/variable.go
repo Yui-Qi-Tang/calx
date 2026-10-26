@@ -45,7 +45,7 @@ func (v Variable) Validate(model Model, horizon int) error {
 	if err := model.Validate(); err != nil {
 		return err
 	}
-	if horizon < 0 || horizon >= 4096 {
+	if horizon < 0 || horizon > maxHorizon {
 		return fmt.Errorf("%w: variable horizon", ErrInput)
 	}
 	return newVariableScope(model, horizon).check(v)

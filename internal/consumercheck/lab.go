@@ -3,6 +3,7 @@ package consumercheck
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -82,7 +83,7 @@ func (s *session) checkLab(ctx context.Context, binary string) error {
 		}
 	}
 	if len(manifest.Fixtures) != 13 {
-		return fmt.Errorf("expected 13 frozen Lab fixtures")
+		return errors.New("expected 13 frozen Lab fixtures")
 	}
 	sort.Slice(manifest.Fixtures, func(i, j int) bool { return manifest.Fixtures[i].Name < manifest.Fixtures[j].Name })
 	for _, fixture := range manifest.Fixtures {
@@ -108,7 +109,7 @@ func (s *session) checkLab(ctx context.Context, binary string) error {
 		return err
 	}
 	if result.Data.Result.Status != sat.SAT || result.Data.Trace == nil || len(result.Data.Trace.Actions) != 1 || result.Data.Trace.Actions[0] != "ab" {
-		return fmt.Errorf("finite CLI trace mismatch")
+		return errors.New("finite CLI trace mismatch")
 	}
 	invalid := []byte(`{"model":{"fields":{"x":[false,true]},"actions":[]},"query":{"profile":"categorical-simple-first-hit/v1","start":{"x":false},"goal":{"x":true},"horizon":1}}`)
 	raw, err = s.command(ctx, s.config.CalxDir, "reject-typed-input", invalid, nil, 1, binary, "encode")
@@ -120,7 +121,7 @@ func (s *session) checkLab(ctx context.Context, binary string) error {
 		return err
 	}
 	if rejected.Outcome != "ERROR" || rejected.Error == nil {
-		return fmt.Errorf("typed input rejection was not reported")
+		return errors.New("typed input rejection was not reported")
 	}
 	return nil
 }

@@ -11,7 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
@@ -88,7 +89,7 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 	if int64(len(p)) > w.remaining {
 		w.exceeded = true
 		w.cancel()
-		return 0, fmt.Errorf("tool output limit")
+		return 0, errors.New("tool output limit")
 	}
 	n, err := w.w.Write(p)
 	if n != len(p) && err == nil {
@@ -129,7 +130,7 @@ func Inventory(dir, id string) ([]sat.Artifact, error) {
 	artifacts := make([]sat.Artifact, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.Type().IsRegular() {
-			return artifacts, fmt.Errorf("unexpected nonregular evidence")
+			return artifacts, errors.New("unexpected nonregular evidence")
 		}
 		f, err := os.Open(filepath.Join(dir, entry.Name()))
 		if err != nil {
@@ -141,6 +142,6 @@ func Inventory(dir, id string) ([]sat.Artifact, error) {
 		}
 		artifacts = append(artifacts, sat.Artifact{ID: id + "/" + entry.Name(), Digest: contentDigest, Bytes: n})
 	}
-	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].ID < artifacts[j].ID })
+	slices.SortFunc(artifacts, func(a, b sat.Artifact) int { return strings.Compare(a.ID, b.ID) })
 	return artifacts, nil
 }

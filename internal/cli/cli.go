@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/incidence"
 	"github.com/Yui-Qi-Tang/calx/internal/jsoninput"
+	"github.com/Yui-Qi-Tang/calx/internal/toolrun"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
@@ -147,86 +147,130 @@ func report(w io.Writer, message string, exitCode int) int {
 func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Config, id string) (any, error) {
 	switch cmd {
 	case "project":
-		var g incidence.Graph
-		if err := jsoninput.Decode(raw, &g); err != nil {
-			return nil, err
-		}
-		if err := jsoninput.Require(raw, "node_ids", "edges"); err != nil {
-			return nil, err
-		}
-		return incidence.Project(g, incidence.Limits{})
+		return project(raw)
 	case "reconstruct":
-		var p incidence.Projection
-		if err := jsoninput.Decode(raw, &p); err != nil {
-			return nil, err
-		}
-		if err := jsoninput.Require(raw, "node_ids", "edge_ids", "source", "target", "relation_masks"); err != nil {
-			return nil, err
-		}
-		return p.Graph(incidence.Limits{})
+		return reconstruct(raw)
 	case "decode":
-		var in struct {
-			Request    finiteRequest `json:"request"`
-			Assignment map[int]bool  `json:"assignment"`
-		}
-		if err := jsoninput.Decode(raw, &in); err != nil {
-			return nil, err
-		}
-		e, err := in.Request.compile(ctx)
+		return decode(ctx, raw)
+	case "encode":
+		return encode(ctx, raw)
+	case "solve-finite":
+		return solveFinite(ctx, raw, cfg, id)
+	default: // "solve"; parseOptions rejects every other command.
+		c, err := readCNF(format, raw)
 		if err != nil {
 			return nil, err
 		}
-		return e.Decode(in.Assignment)
+		return solve(ctx, raw, c, cfg, id, nil, "")
 	}
-	var c sat.CNF
-	var e *finite.Encoding
-	var queryDigest digest.Digest
-	var err error
-	if cmd == "encode" || cmd == "solve-finite" {
-		var in finiteRequest
-		if err = jsoninput.Decode(raw, &in); err != nil {
-			return nil, err
-		}
-		e, err = in.compile(ctx)
-		if err != nil {
-			return nil, err
-		}
-		c, err = e.CNF()
-		if err != nil {
-			return nil, err
-		}
-		queryDigest, err = e.Digest()
-		if err != nil {
-			return nil, err
-		}
-		if cmd == "encode" {
-			variables, err := e.Variables()
-			if err != nil {
-				return nil, err
-			}
-			var b bytes.Buffer
-			if err = c.WriteDIMACS(&b); err != nil {
-				return nil, err
-			}
-			return struct {
-				QueryDigest digest.Digest     `json:"query_digest"`
-				CNF         sat.CNF           `json:"cnf"`
-				Variables   []finite.Variable `json:"variables"`
-				DIMACS      string            `json:"dimacs"`
-			}{QueryDigest: queryDigest, CNF: c, Variables: variables, DIMACS: b.String()}, nil
-		}
-	} else if format == "dimacs" {
-		c, err = sat.ReadDIMACS(bytes.NewReader(raw), sat.Limits{})
-	} else {
-		err = jsoninput.Decode(raw, &c)
-		if err == nil {
-			err = jsoninput.Require(raw, "variables", "clauses")
-		}
+}
+
+func project(raw []byte) (any, error) {
+	var g incidence.Graph
+	if err := jsoninput.Decode(raw, &g); err != nil {
+		return nil, err
 	}
+	if err := jsoninput.Require(raw, "node_ids", "edges"); err != nil {
+		return nil, err
+	}
+	return incidence.Project(g, incidence.Limits{})
+}
+
+func reconstruct(raw []byte) (any, error) {
+	var p incidence.Projection
+	if err := jsoninput.Decode(raw, &p); err != nil {
+		return nil, err
+	}
+	if err := jsoninput.Require(raw, "node_ids", "edge_ids", "source", "target", "relation_masks"); err != nil {
+		return nil, err
+	}
+	return p.Graph(incidence.Limits{})
+}
+
+func decode(ctx context.Context, raw []byte) (any, error) {
+	var in struct {
+		Request    finiteRequest `json:"request"`
+		Assignment map[int]bool  `json:"assignment"`
+	}
+	if err := jsoninput.Decode(raw, &in); err != nil {
+		return nil, err
+	}
+	e, err := in.Request.compile(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err = c.CheckShape(); err != nil {
+	return e.Decode(in.Assignment)
+}
+
+// compileRequest decodes a finite request and compiles its query, returning
+// the encoding with its formula and query digest.
+func compileRequest(ctx context.Context, raw []byte) (*finite.Encoding, sat.CNF, digest.Digest, error) {
+	var in finiteRequest
+	if err := jsoninput.Decode(raw, &in); err != nil {
+		return nil, sat.CNF{}, "", err
+	}
+	e, err := in.compile(ctx)
+	if err != nil {
+		return nil, sat.CNF{}, "", err
+	}
+	c, err := e.CNF()
+	if err != nil {
+		return nil, sat.CNF{}, "", err
+	}
+	queryDigest, err := e.Digest()
+	if err != nil {
+		return nil, sat.CNF{}, "", err
+	}
+	return e, c, queryDigest, nil
+}
+
+func encode(ctx context.Context, raw []byte) (any, error) {
+	e, c, queryDigest, err := compileRequest(ctx, raw)
+	if err != nil {
+		return nil, err
+	}
+	variables, err := e.Variables()
+	if err != nil {
+		return nil, err
+	}
+	var b bytes.Buffer
+	if err := c.WriteDIMACS(&b); err != nil {
+		return nil, err
+	}
+	return struct {
+		QueryDigest digest.Digest     `json:"query_digest"`
+		CNF         sat.CNF           `json:"cnf"`
+		Variables   []finite.Variable `json:"variables"`
+		DIMACS      string            `json:"dimacs"`
+	}{QueryDigest: queryDigest, CNF: c, Variables: variables, DIMACS: b.String()}, nil
+}
+
+func solveFinite(ctx context.Context, raw []byte, cfg cadical.Config, id string) (any, error) {
+	e, c, queryDigest, err := compileRequest(ctx, raw)
+	if err != nil {
+		return nil, err
+	}
+	return solve(ctx, raw, c, cfg, id, e, queryDigest)
+}
+
+func readCNF(format string, raw []byte) (sat.CNF, error) {
+	if format == "dimacs" {
+		return sat.ReadDIMACS(bytes.NewReader(raw), sat.Limits{})
+	}
+	var c sat.CNF
+	if err := jsoninput.Decode(raw, &c); err != nil {
+		return sat.CNF{}, err
+	}
+	if err := jsoninput.Require(raw, "variables", "clauses"); err != nil {
+		return sat.CNF{}, err
+	}
+	return c, nil
+}
+
+// solve runs the checked solver on c. A non-nil e decodes a SAT assignment
+// into its finite-model trace.
+func solve(ctx context.Context, raw []byte, c sat.CNF, cfg cadical.Config, id string, e *finite.Encoding, queryDigest digest.Digest) (any, error) {
+	if err := c.CheckShape(); err != nil {
 		return nil, err
 	}
 	r, err := cadical.New(cfg)
@@ -234,13 +278,7 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 		return nil, err
 	}
 	// Preserve the exact transport input separately from the encoded CNF identity.
-	f, err := os.OpenFile(filepath.Join(cfg.ArtifactDir, "request.input"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return nil, err
-	}
-	_, err = f.Write(raw)
-	err = errors.Join(err, f.Close())
-	if err != nil {
+	if _, err := toolrun.Save(cfg.ArtifactDir, "request.input", raw); err != nil {
 		return nil, err
 	}
 	result, err := r.Solve(ctx, id, c)

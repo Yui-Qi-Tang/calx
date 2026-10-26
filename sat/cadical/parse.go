@@ -2,6 +2,8 @@ package cadical
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,10 +17,21 @@ func exactLine(raw []byte, want string) bool {
 	}
 	return false
 }
+
+// soleStatus reports whether want is the only solver status line in raw.
+func soleStatus(raw []byte, want string) bool {
+	for _, status := range []string{"s SATISFIABLE", "s UNSATISFIABLE", "s UNKNOWN"} {
+		if exactLine(raw, status) != (status == want) {
+			return false
+		}
+	}
+	return true
+}
+
 func assignment(raw []byte, count int) (map[int]bool, error) {
 	values := make(map[int]bool, count)
 	ended := false
-	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
 	scanner.Buffer(make([]byte, 4096), 16<<20)
 	for scanner.Scan() {
 		parts := strings.Fields(scanner.Text())
@@ -28,25 +41,25 @@ func assignment(raw []byte, count int) (map[int]bool, error) {
 		for _, part := range parts[1:] {
 			n, err := strconv.Atoi(part)
 			if err != nil {
-				return nil, fmt.Errorf("malformed assignment literal")
+				return nil, errors.New("malformed assignment literal")
 			}
 			if n == 0 {
 				ended = true
 				continue
 			}
 			if ended {
-				return nil, fmt.Errorf("assignment continues after terminator")
+				return nil, errors.New("assignment continues after terminator")
 			}
 			id := n
 			if id < 0 {
 				id = -id
 			}
 			if id < 1 || id > count {
-				return nil, fmt.Errorf("assignment literal outside variable range")
+				return nil, errors.New("assignment literal outside variable range")
 			}
 			value := n > 0
 			if prior, ok := values[id]; ok && prior != value {
-				return nil, fmt.Errorf("contradictory assignment literals")
+				return nil, errors.New("contradictory assignment literals")
 			}
 			values[id] = value
 		}
@@ -55,7 +68,7 @@ func assignment(raw []byte, count int) (map[int]bool, error) {
 		return nil, fmt.Errorf("reading assignment: %w", err)
 	}
 	if !ended || len(values) != count {
-		return nil, fmt.Errorf("incomplete assignment")
+		return nil, errors.New("incomplete assignment")
 	}
 	return values, nil
 }

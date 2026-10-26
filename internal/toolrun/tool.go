@@ -17,6 +17,8 @@ type Tool struct {
 	Digest     digest.Digest
 }
 
+const maxExecutableBytes = 64 << 20
+
 func readTool(path string, expected digest.Digest) (raw []byte, err error) {
 	if path == "" {
 		return nil, fmt.Errorf("%w: executable path is required", sat.ErrInput)
@@ -37,16 +39,16 @@ func readTool(path string, expected digest.Digest) (raw []byte, err error) {
 		return nil, fmt.Errorf("inspecting executable: %w", err)
 	}
 	if !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
-		return nil, fmt.Errorf("not an executable regular file")
+		return nil, errors.New("not an executable regular file")
 	}
-	if info.Size() > 64<<20 {
+	if info.Size() > maxExecutableBytes {
 		return nil, fmt.Errorf("%w: executable size", sat.ErrLimit)
 	}
-	raw, err = io.ReadAll(io.LimitReader(f, (64<<20)+1))
+	raw, err = io.ReadAll(io.LimitReader(f, maxExecutableBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading executable: %w", err)
 	}
-	if len(raw) > 64<<20 {
+	if len(raw) > maxExecutableBytes {
 		return nil, fmt.Errorf("%w: executable size", sat.ErrLimit)
 	}
 	if digest.Sum(raw) != expected {

@@ -107,7 +107,7 @@ func Run(ctx context.Context, config Config) (summary Summary, err error) {
 func (c *Config) validate() error {
 	for _, path := range []*string{&c.CalxDir, &c.CoreDir, &c.MCPDir, &c.PouchDir, &c.LabDir, &c.OutputDir} {
 		if *path == "" {
-			return fmt.Errorf("all checkout and output paths are required")
+			return errors.New("all checkout and output paths are required")
 		}
 		absolute, err := filepath.Abs(*path)
 		if err != nil {
@@ -121,11 +121,11 @@ func (c *Config) validate() error {
 			return err
 		}
 		if relative == "." || filepath.IsLocal(relative) {
-			return fmt.Errorf("output must be outside consumer checkouts")
+			return errors.New("output must be outside consumer checkouts")
 		}
 	}
 	if c.Tools.SolverPath == "" || c.Tools.SolverDigest == "" || c.Tools.CheckerPath == "" || c.Tools.CheckerDigest == "" {
-		return fmt.Errorf("both solver/checker executable paths and digests are required")
+		return errors.New("both solver/checker executable paths and digests are required")
 	}
 	for _, path := range []*string{&c.Tools.SolverPath, &c.Tools.CheckerPath} {
 		absolute, err := filepath.Abs(*path)
@@ -139,14 +139,14 @@ func (c *Config) validate() error {
 		return err
 	}
 	if !strings.Contains(string(module), "module github.com/Yui-Qi-Tang/calx\n") {
-		return fmt.Errorf("calx root does not identify the Calx module")
+		return errors.New("calx root does not identify the Calx module")
 	}
 	return nil
 }
 
 func (s *session) source(kind, root, relative string) ([]byte, error) {
 	if !filepath.IsLocal(relative) {
-		return nil, fmt.Errorf("invalid source-relative path")
+		return nil, errors.New("invalid source-relative path")
 	}
 	path := filepath.Join(root, relative)
 	raw, err := os.ReadFile(path)

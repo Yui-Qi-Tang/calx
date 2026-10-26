@@ -1,9 +1,11 @@
 package finite
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // Coordinate identifies one categorical value in the state matrix.
@@ -42,15 +44,7 @@ func Project(model Model) (Matrix, error) {
 		}
 	}
 	actions := slices.Clone(model.Actions)
-	slices.SortFunc(actions, func(a, b Action) int {
-		if a.ID < b.ID {
-			return -1
-		}
-		if a.ID > b.ID {
-			return 1
-		}
-		return 0
-	})
+	slices.SortFunc(actions, func(a, b Action) int { return strings.Compare(a.ID, b.ID) })
 	for _, action := range actions {
 		m.ActionIDs = append(m.ActionIDs, action.ID)
 		guard, effect, frame := make([]int, len(m.Coordinates)), make([]int, len(m.Coordinates)), make([]int, len(m.Fields))
@@ -76,7 +70,7 @@ func Project(model Model) (Matrix, error) {
 
 // actions reconstructs rules after validating axes and dimensions.
 func (m Matrix) actions() ([]Action, error) {
-	if len(m.Fields) == 0 || len(m.Fields) > 16 || len(m.ActionIDs) == 0 || len(m.ActionIDs) > 64 || len(m.Coordinates) > 1024 {
+	if len(m.Fields) == 0 || len(m.Fields) > maxFields || len(m.ActionIDs) == 0 || len(m.ActionIDs) > maxActions || len(m.Coordinates) > maxFields*maxValues {
 		return nil, ErrInput
 	}
 	fields := map[string]bool{}
@@ -101,34 +95,34 @@ func (m Matrix) actions() ([]Action, error) {
 		}
 	}
 	if len(m.Guard) != len(m.ActionIDs) || len(m.Effect) != len(m.ActionIDs) || len(m.Frame) != len(m.ActionIDs) {
-		return nil, fmt.Errorf("matrix row count mismatch")
+		return nil, errors.New("matrix row count mismatch")
 	}
 	out := make([]Action, 0, len(m.ActionIDs))
 	for i, id := range m.ActionIDs {
 		if len(m.Guard[i]) != len(m.Coordinates) || len(m.Effect[i]) != len(m.Coordinates) || len(m.Frame[i]) != len(m.Fields) {
-			return nil, fmt.Errorf("matrix column count mismatch")
+			return nil, errors.New("matrix column count mismatch")
 		}
 		a := Action{ID: id, Guard: State{}, Effect: State{}, Frame: []string{}}
 		for j, cell := range m.Coordinates {
 			if m.Guard[i][j] < 0 || m.Guard[i][j] > 1 || m.Effect[i][j] < 0 || m.Effect[i][j] > 1 {
-				return nil, fmt.Errorf("nonbinary matrix cell")
+				return nil, errors.New("nonbinary matrix cell")
 			}
 			if m.Guard[i][j] == 1 {
 				if _, ok := a.Guard[cell.Field]; ok {
-					return nil, fmt.Errorf("multiple guard values")
+					return nil, errors.New("multiple guard values")
 				}
 				a.Guard[cell.Field] = cell.Value
 			}
 			if m.Effect[i][j] == 1 {
 				if _, ok := a.Effect[cell.Field]; ok {
-					return nil, fmt.Errorf("multiple effect values")
+					return nil, errors.New("multiple effect values")
 				}
 				a.Effect[cell.Field] = cell.Value
 			}
 		}
 		for j, field := range m.Fields {
 			if m.Frame[i][j] < 0 || m.Frame[i][j] > 1 {
-				return nil, fmt.Errorf("nonbinary frame cell")
+				return nil, errors.New("nonbinary frame cell")
 			}
 			if m.Frame[i][j] == 1 {
 				a.Frame = append(a.Frame, field)

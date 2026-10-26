@@ -31,14 +31,12 @@ func Compile(ctx context.Context, model Model, query Query, options Options) (*E
 	if err != nil {
 		return nil, err
 	}
-	if err := model.Validate(); err != nil {
+	// Project validates the model, which query.validate requires.
+	matrix, err := Project(model)
+	if err != nil {
 		return nil, err
 	}
 	if err := query.validate(model, limits); err != nil {
-		return nil, err
-	}
-	matrix, err := Project(model)
-	if err != nil {
 		return nil, err
 	}
 	if err := checkEncodingBudget(matrix, model.Forbidden, query, limits); err != nil {
