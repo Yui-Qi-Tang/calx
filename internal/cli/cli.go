@@ -102,10 +102,20 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		}
 		return report(stderr, message, exit)
 	}
-	raw, err := readInput(opts.input, stdin)
-	out := response{Outcome: "ERROR", InputDigest: digest.Sum(raw)}
-	if err == nil {
-		out.Data, err = execute(ctx, opts.command, opts.format, raw, opts.tools, opts.id)
+	var out response
+	if opts.command == "pin-tools" {
+		out = response{Outcome: "ERROR"}
+		var m toolManifest
+		if m, err = pinTools(opts.tools.SolverPath, opts.tools.CheckerPath, opts.output); err == nil {
+			out.Data = m
+		}
+	} else {
+		var raw []byte
+		raw, err = readInput(opts.input, stdin)
+		out = response{Outcome: "ERROR", InputDigest: digest.Sum(raw)}
+		if err == nil {
+			out.Data, err = execute(ctx, opts.command, opts.format, raw, opts.tools, opts.id)
+		}
 	}
 	exit := 0
 	if err != nil {
