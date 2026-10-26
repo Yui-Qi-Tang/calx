@@ -13,12 +13,15 @@ import (
 
 // Query binds one exact-length run. Start constrains the state at time zero,
 // Goal the state at time Steps, and no state at any time may match a Forbidden
-// pattern. UNSAT is relative to this system, length and set of patterns.
+// pattern. A nonempty Violates additionally requires that quantity to differ
+// between times zero and Steps; UNSAT then is a conservation proof bounded to
+// this system, length and set of patterns.
 type Query struct {
 	Steps     int
 	Start     Pattern
 	Goal      Pattern
 	Forbidden []Pattern
+	Violates  Quantity
 }
 
 // Options bounds encoding work. Zero fields use the sat.Limits defaults. The
@@ -38,7 +41,7 @@ type Encoding struct {
 }
 
 // layout assigns contiguous DIMACS IDs: all state bits by time, then all
-// choice bits by step.
+// choice bits by step. Auxiliary counter variables follow.
 type layout struct {
 	shape
 	steps int
@@ -109,13 +112,21 @@ func (q Query) validate(s shape) error {
 			return err
 		}
 	}
-	return nil
+	return s.checkQuantity(q.Violates)
 }
 
 func checkBudget(l layout, q Query, limits sat.Limits) error {
+	variables, clauses, literals := encodingSize(l, q)
+	if variables > int64(limits.MaxVariables) || clauses > int64(limits.MaxClauses) || literals > int64(limits.MaxLiterals) {
+		return ErrEncodingLimit
+	}
+	return nil
+}
+
+// encodingSize counts the formula encode would build, without building it.
+func encodingSize(l layout, q Query) (variables, clauses, literals int64) {
 	steps := int64(l.steps)
-	variables := int64(l.variables())
-	var clauses, literals int64
+	variables = int64(l.variables())
 	for c := range l.cells {
 		fanIn := int64(len(l.inputs[c]) + l.choices[c])
 		rows := steps * int64(l.bits) << fanIn
@@ -128,10 +139,8 @@ func checkBudget(l layout, q Query, limits sat.Limits) error {
 		clauses += steps + 1
 		literals += (steps + 1) * int64(len(p))
 	}
-	if variables > int64(limits.MaxVariables) || clauses > int64(limits.MaxClauses) || literals > int64(limits.MaxLiterals) {
-		return ErrEncodingLimit
-	}
-	return nil
+	v, c, lits := violationSize(len(q.Violates))
+	return variables + v, clauses + c, literals + lits
 }
 
 // ruleTable evaluates cell c over every input row. Bit k of row r is input k
@@ -215,16 +224,22 @@ func encode(ctx context.Context, l layout, tables [][]bool, q Query) (sat.CNF, e
 			cnf.Clauses = append(cnf.Clauses, clause)
 		}
 	}
+	if len(q.Violates) > 0 {
+		b := builder{cnf: &cnf, next: len(cnf.Variables) + 1}
+		b.differ(l.violationSides(q.Violates))
+	}
 	return cnf, cnf.CheckShape()
 }
 
 func sortedBits(p Pattern) []Bit {
-	return slices.SortedFunc(maps.Keys(p), func(a, b Bit) int {
-		if a.Cell != b.Cell {
-			return a.Cell - b.Cell
-		}
-		return a.Index - b.Index
-	})
+	return slices.SortedFunc(maps.Keys(p), compareBits)
+}
+
+func compareBits(a, b Bit) int {
+	if a.Cell != b.Cell {
+		return a.Cell - b.Cell
+	}
+	return a.Index - b.Index
 }
 
 type patternBit struct {
@@ -254,6 +269,8 @@ func identity(l layout, tables [][]bool, q Query) (digest.Digest, error) {
 		}
 		rows[c] = string(row)
 	}
+	violates := slices.Clone(q.Violates)
+	slices.SortFunc(violates, func(a, b Term) int { return compareBits(a.Bit, b.Bit) })
 	forbidden := make([][]patternBit, len(q.Forbidden))
 	for i, p := range q.Forbidden {
 		forbidden[i] = canonical(p)
@@ -269,7 +286,8 @@ func identity(l layout, tables [][]bool, q Query) (digest.Digest, error) {
 		Start     []patternBit   `json:"start"`
 		Goal      []patternBit   `json:"goal"`
 		Forbidden [][]patternBit `json:"forbidden"`
-	}{Profile, l.cells, l.bits, l.inputs, l.choices, rows, l.steps, canonical(q.Start), canonical(q.Goal), forbidden})
+		Violates  []Term         `json:"violates"`
+	}{Profile, l.cells, l.bits, l.inputs, l.choices, rows, l.steps, canonical(q.Start), canonical(q.Goal), forbidden, violates})
 	if err != nil {
 		return "", fmt.Errorf("encoding automaton identity: %w", err)
 	}
