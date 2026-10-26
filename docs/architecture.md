@@ -3,9 +3,11 @@
 Calx is one module with separately importable packages and a thin CLI. Public
 packages depend on neither AHE nor Pouch. The current implementation has no
 third-party Go dependency. `sat/cadical` uses `internal/toolrun` and `sat`;
-`finite` uses `sat`; `incidence` is independent of both. The leaf package
-`digest` owns content identifiers, their current algorithm and textual format.
-`finite`, `sat`, `sat/cadical`, tool execution and CLI code use that shared type.
+`finite` and `automaton` use `sat`; `lga` uses only `automaton`; `incidence` is
+independent of all of them. The leaf package `digest` owns content identifiers,
+their current algorithm and textual format.
+`finite`, `automaton`, `sat`, `sat/cadical`, tool execution and CLI code use
+that shared type.
 CLI wiring lives in `internal/cli` and `cmd/calx`.
 
 ## Package dependencies
@@ -16,19 +18,27 @@ Arrows mean “imports”; consumers choose the packages they need.
 flowchart TD
     Consumer["Consumer Go program"] --> Incidence["incidence"]
     Consumer --> Finite["finite"]
+    Consumer --> LGA["lga"]
+    Consumer --> Automaton["automaton"]
+    LGA --> Automaton
     Consumer --> Cadical["sat/cadical"]
     CLI["cmd/calx + internal/cli"] --> Incidence
     CLI --> Finite
     CLI --> Cadical
     Finite --> SAT["sat"]
+    Automaton --> SAT
     Cadical --> SAT
     Cadical --> Toolrun["internal/toolrun"]
     Toolrun --> SAT
     SAT --> Digest["digest"]
     Finite --> Digest
+    Automaton --> Digest
     Cadical --> Digest
     Toolrun --> Digest
     CLI --> Digest
+    CLI --> SAT
+    CLI --> Toolrun
+    CLI --> JSONInput["internal/jsoninput"]
 ```
 
 ## Data flow
@@ -93,3 +103,26 @@ artifacts are not rewritten by this module.
 
 There is no SMT, arbitrary numerical matrix algebra, physics, automatic source
 interpretation, execution, persistence, or evidence-admission API in v0.
+
+## v0.1 additions
+
+v0.1 extends the scope as fixed in the [v0.1 design](v0.1-design.md). The API
+and behavior of `sat` and `sat/cadical` are unchanged.
+
+- Implemented: `automaton` encodes exact-length runs of a caller-supplied
+  synchronous Boolean automaton. The caller implements `automaton.System`, so
+  Calx sees cell and bit indices and the local rule, never their meaning. The
+  consumer solves the CNF with its own `cadical.Runner`, decodes with
+  `Encoding.Decode` and checks the result with `automaton.Replay`. A
+  `Violates` query asks whether a signed sum of bits can change within the run;
+  UNSAT is a conservation proof bounded to that run.
+- Implemented: `lga` provides the HPP and FHP-I lattice gases as
+  `automaton.System` values, with bounce-back walls, conserved-quantity
+  helpers, density and velocity averaging, and bit-packed `Run` methods for
+  fast forward simulation. It imports only `automaton`. It does not claim to
+  reproduce a real fluid.
+- Implemented: the CLI's `pin-tools` command writes a tool manifest that solve
+  commands accept through `--tools`, as an alternative to the four tool flags.
+  `sat/cadical` is unchanged.
+- The v0 exclusions above still apply to everything else, including SMT,
+  arbitrary numerical matrix algebra and persistence.

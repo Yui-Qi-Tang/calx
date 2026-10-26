@@ -1,6 +1,7 @@
 # Internal execution: graph → matrix → logic resolver → result
 
-These diagrams follow Calx's current functions and data. Start with the overview,
+These diagrams follow the v0 finite route. The v0.1 automaton route is described
+in the [v0.1 design](v0.1-design.md#automaton). Start with the overview,
 then follow the matrix compiler, solver/checker and result-decoding paths.
 The worked computation is the README example: one action changes `state=off`
 to `state=on`, with an exact horizon of one.
@@ -32,9 +33,9 @@ The two matrix contracts have different axes:
 
 | Representation | Rows | Columns | Cell meaning |
 | --- | --- | --- | --- |
-| `incidence.Source` / `Target` | Nodes | Identified edges | This node starts/ends this edge |
-| `finite.Guard` / `Effect` | Actions | Field/value coordinates | This action requires/assigns this value |
-| `finite.Frame` | Actions | Fields | This action preserves this field |
+| `incidence.Projection.Source` / `Target` | Nodes | Identified edges | This node starts/ends this edge |
+| `finite.Matrix.Guard` / `Effect` | Actions | Field/value coordinates | This action requires/assigns this value |
+| `finite.Matrix.Frame` | Actions | Fields | This action preserves this field |
 
 **Source:** [incidence.Project](../incidence/incidence.go),
 [finite.Compile](../finite/cnf.go), [finite.Project](../finite/matrix.go),

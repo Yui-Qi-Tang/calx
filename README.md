@@ -1,26 +1,34 @@
 # Calx
 
 Calx is a domain-neutral Go module for graph incidence projection, bounded
-categorical-model encoding and checked Boolean SAT solving. Packages can be
-imported independently.
+categorical-model encoding, bounded analysis of caller-supplied Boolean
+automata and checked Boolean SAT solving. Packages can be imported
+independently.
 
 | Package | Responsibility | Example |
 | --- | --- | --- |
 | `digest` | Shared content-digest value, generation, parsing and validation | [Digest API](docs/data-structures.md#content-digests) |
 | `incidence` | Directed multigraph topology ↔ source/target incidence matrices, IDs and opaque relation masks | [Project and reconstruct](#1-incidence-project-and-reconstruct) |
 | `finite` | Validated categorical model → operation matrix → exact-length CNF; assignment → trace | [Matrices and CNF](#2-finite-project-and-compile) |
+| `automaton` | Caller-implemented synchronous Boolean automaton → exact-length CNF; assignment → replayable trajectory (v0.1) | [v0.1 design](docs/v0.1-design.md) |
+| `lga` | HPP and FHP-I lattice gases with walls as `automaton.System`; bit-packed simulation, conserved quantities, density and velocity fields (v0.1) | [v0.1 design](docs/v0.1-design.md#lga) |
 | `sat` | CNF, DIMACS, total-assignment checking, limits and explicit validation records | [Check a formula](#3-sat-check-a-formula) |
 | `sat/cadical` | Pinned CaDiCaL and DRAT-trim processes, checked results and retained artifacts | [Checked solve and trace](#4-satcadical-solve-check-and-decode) |
 
-Explore the [graph-to-matrix walkthrough](docs/graph-to-matrix.md) for a visual
-example, or use the [data-structure reference](docs/data-structures.md) for Go
-types, JSON fields and matrix dimensions. The [architecture](docs/architecture.md)
-shows how the packages fit together; [contracts](docs/contracts.md) explains
-their validation and result guarantees.
-For the internal computation, follow the four [execution-flow diagrams](docs/execution-flow.md)
-from the graph representation through CNF, solver checks and result decoding.
-The [error and variable contracts](docs/error-handling.md) explain required
-fields, declared action IDs and the error-returning accessors.
+## Documentation
+
+| Document | Read it for |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Package boundaries, imports, data flow and scope (v0 and v0.1) |
+| [Contracts](docs/contracts.md) | Validation rules, limits and what each answer guarantees |
+| [Data structures](docs/data-structures.md) | Go types, JSON fields, variable numbering and matrix dimensions |
+| [Error handling](docs/error-handling.md) | Error-returning accessors, variable roles and inconclusive answers |
+| [Execution flow](docs/execution-flow.md) | Diagrams of the finite route from model through CNF, solver checks and decoding |
+| [Graph to matrix](docs/graph-to-matrix.md) | A visual walkthrough of incidence projection |
+| [v0.1 design](docs/v0.1-design.md) | The automaton and lattice-gas design, phases and measured limits |
+| [Adoption](docs/adoption.md) | What it takes for AHE and Pouch repositories to import Calx |
+| [Consumer conformance](docs/compatibility.md) | The bounded compatibility check against consumer sources |
+| [Validation log](docs/validation.md) | Dated verification records and retained evidence |
 
 ## Library examples
 
@@ -286,7 +294,10 @@ Expected output:
 ```json
 {
   "dimacs": "p cnf 2 2\n1 0\n-1 2 0\n",
-  "assignment": {"1": true, "2": true},
+  "assignment": {
+    "1": true,
+    "2": true
+  },
   "assignment_checked": true
 }
 ```
@@ -461,6 +472,45 @@ directory also retains `input.json`, `input.cnf`, solver output and, for UNSAT,
 checker output. `Encoding.Decode` uses the same encoding that produced the
 solved formula; a raw-CNF caller supplies its own interpretation map.
 
+### 5. automaton and lga: simulate, prove and break a lattice gas
+
+`lga.HPP` is an `automaton.System`, so one rule drives both forward simulation
+and SAT analysis. [Complete runnable source](examples/lga/main.go).
+
+Without solver tools, the example runs 8 steps of a 16×8 lattice. An
+east-moving band starts in columns 0–3 and a west-moving band in column 8. The
+example prints the conserved quantities and 4×4 block averages:
+
+```sh
+go run ./examples/lga
+```
+
+```json
+{"mass":[40,40],"momentum_x":[24,24],"density":[[0.25,0.25,0.75,0],[0.25,0.25,0.75,0]],"velocity_x":[[-1,1,1,0],[-1,1,1,0]]}
+```
+
+With `-check` and the four `CALX_*` tool variables from section 4, the example
+runs two checked queries:
+
+- It proves that no 3-step run of a 2×2 HPP lattice changes mass (UNSAT with a
+  checked DRAT proof).
+- It asks the same question of a deliberately broken rule, in which a head-on
+  pair becomes one particle. The solver returns a counterexample, which is
+  decoded and replayed:
+
+```sh
+go run ./examples/lga -check -artifacts artifacts/go-lga
+```
+
+```json
+{"conserved_mass_2x2":"UNSAT","leaky_mass_4x4":"SAT","counterexample_mass":[9,8]}
+```
+
+The counterexample's particle counts depend on the solver's model; the status
+values do not. Whole-lattice conservation proofs are kept to 2×2 because CDCL
+proofs of counting arguments stop finishing at about 32 terms; see
+[contracts](docs/contracts.md#synchronous-boolean-automata-v01).
+
 ## Standalone command
 
 ```sh
@@ -469,32 +519,51 @@ bin/calx project --in examples/graph.json
 bin/calx encode --in examples/finite.json
 ```
 
-The standalone CLI takes tool settings through flags. It does **not** read the
-`CALX_*` environment variables automatically; the shell expands them in the
-command below. Calx does not download or bundle the executables.
+Calx does not download or bundle the solver executables. Pin the ones you
+have selected once; `pin-tools` hashes both files and writes a manifest with
+their absolute paths and digests:
 
-For actual solving, pass both executable paths, their expected digests, and a
-new artifact directory whose parent already exists:
+```sh
+bin/calx pin-tools --solver /absolute/path/to/cadical --checker /absolute/path/to/drat-trim --out tools.json
+```
+
+```json
+{
+  "schema_version": "calx-tools/v1",
+  "solver": {"path": "/absolute/path/to/cadical", "digest": "<64 lowercase hex>"},
+  "checker": {"path": "/absolute/path/to/drat-trim", "digest": "<64 lowercase hex>"}
+}
+```
+
+Review the manifest like any other pinned dependency; it can be committed next
+to the inputs it serves. Then solve with a new artifact directory whose parent
+already exists:
 
 ```sh
 mkdir -p artifacts
-bin/calx solve-finite --in examples/finite.json \
-  --solver "$CALX_CADICAL" --solver-digest "$CALX_CADICAL_DIGEST" \
-  --checker "$CALX_DRAT" --checker-digest "$CALX_DRAT_DIGEST" \
-  --artifacts artifacts/example
+bin/calx solve-finite --in examples/finite.json --tools tools.json --artifacts artifacts/example
 ```
+
+The manifest records a trust decision; it is not a trust root. Every run still
+copies each executable and checks its bytes against the pinned digest, so a
+tool replaced after pinning fails with a digest mismatch. The four explicit
+flags `--solver`, `--solver-digest`, `--checker` and `--checker-digest` remain
+available instead of `--tools`, not together with it. The CLI never reads the
+`CALX_*` environment variables.
 
 Use `bin/calx --help` to list commands, or `bin/calx solve --help` for the
 flags accepted by one command. Help exits successfully without reading input.
 
 | Flag | Applies to | Meaning and default |
 | --- | --- | --- |
-| `--in FILE` | All commands | Input file; `-` reads stdin (default). Maximum 16 MiB. |
+| `--in FILE` | All commands except `pin-tools` | Input file; `-` reads stdin (default). Maximum 16 MiB. |
 | `--format FORMAT` | `solve` | CNF format: `json` (default) or `dimacs`. Other commands take JSON without this flag. |
-| `--solver PATH` | `solve`, `solve-finite` | Required CaDiCaL executable file path, not a shell command. |
-| `--solver-digest DIGEST` | `solve`, `solve-finite` | Required expected digest of solver bytes, in the format described above. |
-| `--checker PATH` | `solve`, `solve-finite` | Required DRAT-trim executable file path, including runs that return SAT. |
-| `--checker-digest DIGEST` | `solve`, `solve-finite` | Required expected digest of checker bytes. |
+| `--tools FILE` | `solve`, `solve-finite` | Tool manifest from `pin-tools`. Replaces the next four flags and cannot be combined with them. |
+| `--solver PATH` | `solve`, `solve-finite`, `pin-tools` | CaDiCaL executable file path, not a shell command. Required without `--tools`, and for `pin-tools`. |
+| `--solver-digest DIGEST` | `solve`, `solve-finite` | Expected digest of solver bytes, in the format described above. Required without `--tools`. |
+| `--checker PATH` | `solve`, `solve-finite`, `pin-tools` | DRAT-trim executable file path, used even for runs that return SAT. Required without `--tools`, and for `pin-tools`. |
+| `--checker-digest DIGEST` | `solve`, `solve-finite` | Expected digest of checker bytes. Required without `--tools`. |
+| `--out FILE` | `pin-tools` | Required new manifest file; an existing file is never overwritten. |
 | `--artifacts DIR` | `solve`, `solve-finite` | Required new run directory. Parent must exist; DIR must not exist. Stores private tools, inputs, output and validation records. |
 | `--id NAME` | `solve`, `solve-finite` | Query subdirectory name, default `query`. 1–80 ASCII letters, digits, `_` or `-`; starts with a letter or digit. |
 | `--timeout DURATION` | `solve`, `solve-finite` | Default `30s`; solver and checker share the deadline. Excludes model compilation and tool preparation. `0` selects the default; negatives fail. |
@@ -525,10 +594,10 @@ are `query_digest`. The previous field names and v1 output schema have no aliase
 Update consumers explicitly; existing evidence files and frozen consumer fixtures
 are not rewritten. The identified bytes and digest algorithm are unchanged.
 
-Tool inputs use `CALX_*_DIGEST` and `--solver-digest`/`--checker-digest`.
-`cadical.Config` accepts typed digests. In the Go example, environment strings
-are converted to that type and validated by `cadical.New`. Applications can use
-`digest.Parse` for earlier validation.
+The CLI takes tools from a `--tools` manifest or from the four tool flags. `cadical.Config` accepts typed digests. The Go examples read
+`CALX_*` environment variables only as example plumbing, convert them to that
+type and let `cadical.New` validate them. Applications can use `digest.Parse`
+for earlier validation.
 
 ## Verification
 
@@ -541,8 +610,11 @@ Opt-in actual solver acceptance, with the four tool variables above and
 `CALX_ARTIFACTS` naming an existing fresh acceptance parent:
 
 ```sh
-go test -tags resolverintegration -count=1 -run TestRealTools ./sat/cadical
+go test -tags resolverintegration -count=1 -run TestRealTools ./sat/cadical ./lga
 ```
+
+The `lga` tests prove HPP and FHP conservation laws, find counterexamples for
+deliberately broken rules, and check walls and chirality.
 
 [Consumer conformance](docs/compatibility.md) exercises selected AHE Core/MCP,
 Pouch Product Go source snapshots and frozen Lab CNF fixtures in fresh ignored directories.
@@ -552,7 +624,9 @@ records the observed scope and limitations.
 
 ## Requirements and version
 
-Experimental v0, unreleased. Development and verification use **Go 1.27.2**.
+Experimental, unreleased: v0 is complete and v0.1 adds `automaton` and `lga`.
+Development and verification use **Go 1.27.3**, which `go.mod` also declares
+as the minimum; consumers need at least that version.
 The library module currently uses only the Go standard library. Verification
 also runs pinned errcheck v1.30.0 as an external Go development tool.
 Projection and encoding

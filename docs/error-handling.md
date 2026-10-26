@@ -53,7 +53,7 @@ UTF-8, size and rule checks. They cannot invent a new action in a Variable map:
 an action variable must refer to an existing declared action. The `omitempty`
 JSON tags omit only fields that do not apply to the validated role.
 
-## API changes in this v0 revision
+## Error-returning accessors
 
 | Method | Current return values |
 | --- | --- |

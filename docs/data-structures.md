@@ -27,8 +27,9 @@ classDiagram
     Encoding --> Trace : Decode
 ```
 
-`Graph`/`Projection` refer to `incidence`; `Model` through `Trace` refer to
-`finite`; `CNF`/validation/artifacts refer to `sat`. `VariableMap` in the diagram
+The diagram covers the v0 types. The v0.1 `automaton` and `lga` types have
+their own sections below. `Graph`/`Projection` refer to `incidence`; `Model`
+through `Trace` refer to `finite`; `CNF`/validation/artifacts refer to `sat`. `VariableMap` in the diagram
 means `[]finite.Variable`. `SolverResult` means `cadical.Result`.
 
 Matrix array indices and time indices are zero-based. CNF variable IDs are
@@ -39,8 +40,8 @@ array positions.
 
 Source: [digest/digest.go](../digest/digest.go).
 
-`digest.Digest` is a defined string type shared by finite encodings, solver
-configuration, results and retained artifacts. The algorithm and textual parser
+`digest.Digest` is a defined string type shared by finite and automaton
+encodings, solver configuration, results and retained artifacts. The algorithm and textual parser
 live in this package. Current values are SHA-256 encoded as 64 lowercase hex
 characters without a prefix. JSON values remain strings.
 
@@ -221,6 +222,69 @@ Trace contains `States []State` (`states`) and `Actions []string` (`actions`).
 A trace with H actions contains H+1 complete states. It is a model witness;
 original-rule replay and real execution remain separate checks.
 
+## Synchronous Boolean automata (v0.1)
+
+Source: [automaton](../automaton/). The caller implements `automaton.System`;
+the other types are plain values.
+
+| Type | Shape | Meaning |
+| --- | --- | --- |
+| `System` | `Cells() int`, `Bits() int`, `Inputs(cell) []Bit`, `Next(cell, in, out []bool)` | Caller-owned automaton; Calx sees only indices and the rule |
+| `Chooser` | `Choices(cell) int` | Optional; choice bits follow the inputs in `in` |
+| `Bit` | `Cell`, `Index int` (`cell`, `index`) | One state bit of one cell |
+| `State` | `[]bool` | `Cells()*Bits()` values; bit (c, i) at index `c*Bits()+i` |
+| `Pattern` | `map[Bit]bool` | Partial state constraint |
+| `Query` | `Steps int`, `Start`, `Goal Pattern`, `Forbidden []Pattern`, `Violates Quantity` | One exact-length run; nonempty `Violates` requires the quantity to change |
+| `Term` | `Bit Bit` (`bit`), `Weight int` (`weight`) | One signed bit, weight +1 or -1 |
+| `Quantity` | `[]Term` | Sum of signed bits, such as mass or one momentum component |
+| `Options` | `MaxVariables`, `MaxClauses`, `MaxLiterals int` | Encoding budget; zero uses `sat.Limits` defaults |
+| `Trajectory` | `States []State` (`states`), `Choices [][]bool` (`choices`) | Steps+1 states; per step, every cell's choice bits in cell order |
+
+Encoding has private fields and is created by `Compile`:
+
+| Method or function | Return | Meaning |
+| --- | --- | --- |
+| `CNF()` | `sat.CNF, error` | Independent copy of the compiled formula |
+| `Digest()` | `digest.Digest, error` | Content digest of structure, rule tables and query |
+| `Decode(assignment)` | `Trajectory, error` | Check assignment against the owned CNF, then decode |
+| `Replay(sys, trajectory)` | `error` | Re-evaluate every step; `ErrReplay` on a mismatch |
+| `Simulate(sys, start, steps, choose)` | `[]State, error` | Forward run; `choose` supplies choice bits |
+
+Variable IDs are contiguous: state bit (t, c, i) is
+`1 + t*Cells*Bits + c*Bits + i` for t = 0..Steps, then choice bit j of cell c
+at step t follows all state bits in step-major, cell-major order. Totalizer and
+disagreement variables for `Violates` follow the choice bits. Decode ignores
+them. Variables carry no metadata.
+
+## Lattice gases (v0.1)
+
+Source: [lga](../lga/). `lga.HPP{Width, Height, Walls}` is an `automaton.System` with
+4 bits per cell in the order `East`, `North`, `West`, `South` (constants 0–3);
+north increases y and cell (x, y) has index `y*Width + x`. A state holds the
+post-collision particles leaving each cell. One step streams them to the
+neighbors and collides there, with periodic boundaries.
+
+| Method | Return | Meaning |
+| --- | --- | --- |
+| `Mass()` | `automaton.Quantity` | Every particle, weight +1 |
+| `MomentumX()`, `MomentumY()` | `automaton.Quantity` | East minus west, north minus south |
+| `RowMomentumX(y)`, `ColumnMomentumY(x)` | `automaton.Quantity` | One row's x momentum, one column's y momentum; out of range fails at Compile |
+| `Density(states, block)` | `[][]float64, error` | Mean particles per cell for each block×block region, averaged over the states; rows are y |
+| `Velocity(states, block)` | `ux, uy [][]float64, error` | Mean momentum per particle for each region; empty regions are zero |
+
+`lga.FHP{Width, Height, Walls}` has 6 bits per cell in the order `HexE`,
+`HexNE`, `HexNW`, `HexW`, `HexSW`, `HexSE` (counterclockwise from east). Cell
+(q, r) in axial coordinates has index `r*Width + q`. Every fluid cell has one
+choice bit. Its quantities are `Mass()`, `MomentumQ()` and `MomentumR()`: the
+Cartesian momentum is `Q*(1, 0) + R*(1/2, √3/2)`. `Density` and `Velocity` use
+block×block regions of axial indices, and velocity is Cartesian.
+
+Both types take `Walls []bool` (nil, or one entry per cell; true marks a
+bounce-back wall) and provide `Validate() error`. Forward simulation uses
+`automaton.Simulate(lattice, start, steps, choose)`, or the bit-packed
+`HPP.Run(start, steps)` and `FHP.Run(start, steps, choose func(step, cell int) bool)`.
+Both `Run` methods return only the final state.
+
 ## CNF, assignments and verification records
 
 Sources: [sat/cnf.go](../sat/cnf.go), [sat/result.go](../sat/result.go),
@@ -325,6 +389,7 @@ implicitly accepted as request schemas.
 | `decode` | `{request:{model,query,options?},assignment}` | `finite.Trace` |
 | `solve` | `sat.CNF`, or DIMACS with `--format dimacs` | `{result}` |
 | `solve-finite` | `{model,query,options?}` | `{result,query_digest,trace?}` |
+| `pin-tools` | none; flags only | the written `calx-tools/v1` manifest |
 
 `encode.variables` is `[]finite.Variable`, while `encode.cnf.variables` is
 `[]sat.Variable`. `trace` is present only after successful SAT decoding.
@@ -336,7 +401,7 @@ Every response is wrapped in this envelope:
 | --- | --- | --- |
 | `schema_version` | string | `calx-cli/v2` |
 | `outcome` | string | OK or ERROR for this command |
-| `input_digest` | string (Go: `digest.Digest`) | Exact original transport bytes, before JSON/DIMACS decoding |
+| `input_digest` | string (Go: `digest.Digest`) | Exact original transport bytes, before JSON/DIMACS decoding; omitted by `pin-tools`, which reads no input |
 | `data` | object, optional | Command output or retained diagnostic result |
 | `error` | object, optional | `{code:string,message:string}` |
 

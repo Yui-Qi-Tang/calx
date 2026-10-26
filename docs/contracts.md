@@ -50,6 +50,67 @@ horizon and blocking. Order-sensitive lists remain order-sensitive. It binds
 this serialization, not mathematical equivalence or cross-language canonical
 JSON. Native textual names are UTF-8-validated to prevent lossy JSON conversion.
 
+## Synchronous Boolean automata (v0.1)
+
+`synchronous-boolean/v1` encodes exactly `Steps` synchronous steps (0–4,095) of
+a caller-supplied `automaton.System`: 1–1,048,576 cells and 1–16 bits per cell.
+More cells fail with `sat.ErrLimit`; other structural violations fail with
+`automaton.ErrInput`.
+Each cell lists distinct, in-range input bits. Inputs plus `Chooser` choice bits
+are at most 12 per cell. Choice bits are free variables, so a nondeterministic
+rule allows every choice. Start constrains time zero, Goal constrains the last
+state, and each nonempty Forbidden pattern is excluded at every time.
+
+A nonempty `Violates` quantity lists distinct in-range bits with weight +1 or
+-1 and requires its value at time zero to differ from its value at the last
+state. Calx compares `P(0) + N(k)` with `P(k) + N(0)` through two exact
+totalizer counters, so the clause count grows roughly with the square of the
+number of terms. With zero steps the query is always UNSAT.
+
+Proving a whole-lattice sum unchanged is a counting argument, which CDCL
+solvers handle poorly. Measured with the pinned CaDiCaL on HPP (90 s limit):
+16-term mass proofs finish in under a second, but 36- and 64-term mass proofs
+time out even for one step, and 32-term momentum proofs range from 1.5 s to a
+timeout. Counterexample search (SAT) and row or column sums stay fast. Treat
+UNKNOWN on a large quantity as inconclusive, never as a violation.
+
+`Next` must be deterministic. Compile evaluates it once per cell and input row
+before encoding; no call is concurrent, and panics are not recovered. The
+variable, clause and literal budget (defaults 100,000, 1,000,000 and 4,000,000)
+is checked before any rule evaluation. Budget exhaustion and cancellation are
+errors, never UNSAT.
+
+Digest identifies the cell structure, the evaluated rule tables and the query,
+with pattern bits in sorted order. It does not identify the caller's System
+implementation. Decode requires a total assignment checked against the owned
+CNF. Replay re-evaluates the caller's rule on the decoded trajectory, so it
+checks the encoding, not whether the rule models anything real. UNSAT is
+limited to the declared System, the exact step count and the given patterns.
+
+## Lattice gases (v0.1)
+
+`lga.HPP` is a periodic Width×Height square lattice with at least one cell in
+each direction. `lga.FHP` is the FHP-I hexagonal lattice in axial coordinates
+on a periodic Width×Height parallelogram, with one choice bit per fluid cell
+that rotates a head-on pair counterclockwise when true. Both accept `Walls`,
+which is nil or has one entry per cell. A wall cell reverses every arriving
+particle and has no choice bit; walls conserve mass but not momentum. Call
+`Validate` before using a value as a System; `Run`, `Density` and `Velocity`
+validate it themselves. For 0–4,095 steps, `Run` must return the same final
+state as `automaton.Simulate` with the same choices; `Run` also accepts longer
+runs, which `Simulate` rejects. FHP's `choose` is not called for wall cells.
+
+In both models a state is the post-collision configuration, and one step
+streams and then collides, so each HPP cell reads four arrival bits and each
+FHP cell six. The HPP collision exchanges exact head-on east–west and
+north–south pairs. Without walls it conserves mass and momentum, including
+momentum along every row and column. Quantity helpers name
+bits only. An out-of-range row or column yields a quantity that Compile rejects.
+Density and Velocity require block to divide both dimensions and every state to
+have `Bits()*Width*Height` bits (4 per cell for HPP, 6 for FHP). They average
+over all given states, and a region without particles has zero velocity. HPP is
+not an isotropic fluid model.
+
 ## SAT and artifacts
 
 CNF variables have contiguous one-based IDs. Signed clause literals are nonzero.
@@ -80,8 +141,9 @@ returns `sat.ErrInput`; a byte mismatch returns `sat.ErrValidation`. Both errors
 occur before artifact creation. Digest values are provided by the shared
 `digest` package; fields use role names such as `InputDigest` and `TargetDigest`.
 For checked results, Require validates the digest representation as well as
-matching the check target to the appropriate input/formula identity. Query IDs reserve new subdirectories atomically; callers own
-retention and total/concurrent query budgets. No download, fallback or retry is
+matching the check target to the appropriate input/formula identity. Query IDs
+reserve new subdirectories atomically; callers own retention and
+total/concurrent query budgets. No download, fallback or retry is
 implicit. Timeout defaults to 30 seconds shared by solver and checker. Defaults
 also bound input at 16 MiB, each output stream at 16 MiB, and accepted proof at
 64 MiB. The proof limit is checked after exit, not a disk quota. Unix cancellation
@@ -90,13 +152,13 @@ platforms. Native Windows execution has not been validated.
 
 ## JSON CLI
 
-Commands: project, reconstruct, encode, decode, solve, solve-finite.
+Commands: project, reconstruct, encode, decode, solve, solve-finite, pin-tools.
 
 Inputs are at most 16 MiB. Exact JSON field names are required. Duplicate keys,
 unknown/case-aliased fields, null, non-UTF-8 bytes, noncanonical integer map keys,
-trailing values and nesting beyond 64 levels are rejected. Omitted fields are
-allowed only when their native zero semantics or subsequent validation permits
-it. Horizon presence is mandatory for finite requests. CNF input must explicitly
+trailing values and more than 65 nested levels of arrays or objects are
+rejected. Omitted fields are allowed only when their native zero semantics or
+subsequent validation permits it. Horizon presence is mandatory for finite requests. CNF input must explicitly
 contain variables and clauses; use empty arrays for an empty formula/clause.
 
 - project accepts incidence.Graph; reconstruct accepts incidence.Projection.
@@ -106,19 +168,30 @@ contain variables and clauses; use empty arrays for an empty formula/clause.
 - decode accepts `{request:{model,query,options?},assignment:{"1":true,...}}`;
   it recompiles the request instead of trusting a supplied decoding map.
 - solve accepts sat.CNF JSON, or DIMACS with `--format dimacs`.
+- pin-tools reads no input. It hashes `--solver` and `--checker`, which must be
+  executable regular files, and writes a new `--out` manifest. The manifest
+  has schema `calx-tools/v1`, absolute paths and digests. The envelope's data
+  is the same manifest, without an input digest.
 
 Executed operations return schema_version `calx-cli/v2`, outcome OK/ERROR, the transport
 input_digest, optional data and error. OK on project/encode means those operations
 succeeded, not that SAT was checked. Successful solve commands additionally
 require checked SAT/UNSAT. Error is separate from any retained backend answer.
 
-CLI flags provide binary paths/pins, a fresh artifact directory, query ID and
-timeout. No result received from another process is implicitly authenticated by
+CLI flags provide a fresh artifact directory, query ID and timeout, and either
+the four tool flags or a `--tools` manifest provides the binary paths and pins. No result received from another process is implicitly authenticated by
 this format. Trust configuration or independent rechecking belongs to consumers.
 
-The standalone CLI accepts `--solver-digest` and `--checker-digest` for solve
-commands and does not read tool environment variables. Go examples and the
-consumer-check command read `CALX_CADICAL_DIGEST`/`CALX_DRAT_DIGEST` themselves.
+Solve commands take tools either from `--tools FILE` or from the four explicit
+tool flags, never both. The manifest is decoded with the same strict JSON rules,
+is at most 64 KiB, must name schema `calx-tools/v1`, and must contain absolute
+paths and valid digests. It is validated before input is read; problems exit 2.
+The manifest is not authenticated. Executable bytes are still checked against
+its digests during tool preparation. `pin-tools` does not apply the runner's
+64 MiB executable limit, so an oversized tool pins successfully and fails at
+solve time with LIMIT. The standalone CLI does not read tool environment
+variables. The Go examples and the consumer-check command read the four
+`CALX_*` tool variables themselves.
 Old tool-input names are not aliases. Help exits 0 without reading input;
 unknown flags, malformed flag syntax and missing required flags exit 2 on stderr
 before input is read. CLI digest flags are parsed before input is read. Native
