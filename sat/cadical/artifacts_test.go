@@ -11,7 +11,9 @@ import (
 )
 
 func TestArtifactArchivalBoundary(t *testing.T) {
-	r := fixtureRunner(t, "echo 's SATISFIABLE'; echo 'v 1 0'; exit 10", "exit 1", time.Second)
+	// This test checks artifact integrity, not timeouts; a 1 s budget for the
+	// shell fixture expired under parallel package load.
+	r := fixtureRunner(t, "echo 's SATISFIABLE'; echo 'v 1 0'; exit 10", "exit 1", 10*time.Second)
 	result, err := r.Solve(context.Background(), "archive", tinyCNF())
 	if err != nil {
 		t.Fatal(err)
