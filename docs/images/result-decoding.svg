@@ -16,8 +16,8 @@
 <text x="74" y="242" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Model: present / decoded / checked</text>
 <text x="74" y="269" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Proof.Checked: false</text>
 <text x="74" y="296" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Assignment: {1:true, 2:false, …}</text>
-<text x="74" y="323" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >InputSHA256 / FormulaSHA256</text>
-<text x="74" y="350" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >SolverSHA256 / CheckerSHA256</text>
+<text x="74" y="323" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >InputDigest / FormulaDigest</text>
+<text x="74" y="350" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >SolverDigest / CheckerDigest</text>
 <text x="74" y="377" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Artifacts: relative IDs + hashes</text>
 <text x="74" y="475" font-size="17" fill="#0f766e" font-weight="600" text-anchor="start" >Result for the CNF submitted in this call.</text>
 <text x="74" y="530" font-size="18" fill="#b91c1c" font-weight="600" text-anchor="start" >Solve also returns error separately.</text>

@@ -2,12 +2,11 @@ package finite
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
@@ -16,7 +15,7 @@ import (
 type Encoding struct {
 	formula sat.CNF
 	mapping []Variable
-	digest  string // Content digest of the serialized model and query.
+	digest  digest.Digest // Content digest of the serialized model and query.
 	states  [][]int
 	actions [][]int
 	matrix  Matrix
@@ -85,9 +84,8 @@ func Compile(ctx context.Context, model Model, query Query, options Options) (*E
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(raw)
 	return &Encoding{
-		formula: b.cnf, mapping: b.mapping, digest: hex.EncodeToString(sum[:]),
+		formula: b.cnf, mapping: b.mapping, digest: digest.Sum(raw),
 		states: b.states, actions: b.actions, matrix: matrix,
 	}, nil
 }
@@ -161,7 +159,7 @@ func (e *Encoding) Decode(values map[int]bool) (Trace, error) {
 
 // Digest identifies the serialized model and query.
 // Uninitialized encodings return an error.
-func (e *Encoding) Digest() (string, error) {
+func (e *Encoding) Digest() (digest.Digest, error) {
 	if e == nil || e.digest == "" {
 		return "", fmt.Errorf("%w: uninitialized encoding", ErrInput)
 	}

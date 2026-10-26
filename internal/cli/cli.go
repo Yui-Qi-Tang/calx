@@ -4,8 +4,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -13,8 +11,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
+	"strings"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/incidence"
 	"github.com/Yui-Qi-Tang/calx/internal/jsoninput"
@@ -46,20 +45,19 @@ func (r finiteRequest) compile(ctx context.Context) (*finite.Encoding, error) {
 }
 
 type response struct {
-	Schema      string   `json:"schema_version"`
-	Outcome     string   `json:"outcome"`
-	InputSHA256 string   `json:"input_sha256,omitempty"`
-	Data        any      `json:"data,omitempty"`
-	Error       *failure `json:"error,omitempty"`
+	Schema      string        `json:"schema_version"`
+	Outcome     string        `json:"outcome"`
+	InputDigest digest.Digest `json:"input_digest,omitempty"`
+	Data        any           `json:"data,omitempty"`
+	Error       *failure      `json:"error,omitempty"`
 }
 type failure struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-func digest(raw []byte) string { s := sha256.Sum256(raw); return hex.EncodeToString(s[:]) }
 func emit(w io.Writer, r response) error {
-	r.Schema = "calx-cli/v1"
+	r.Schema = "calx-cli/v2"
 	e := json.NewEncoder(w)
 	e.SetIndent("", "  ")
 	return e.Encode(r)
@@ -74,6 +72,8 @@ func code(err error) string {
 		return "LIMIT"
 	case errors.Is(err, finite.ErrUnsupported) || errors.Is(err, sat.ErrUnsupported):
 		return "UNSUPPORTED"
+	case errors.Is(err, sat.ErrInconclusive):
+		return "INCONCLUSIVE"
 	case errors.Is(err, sat.ErrGuarantee):
 		return "GUARANTEE"
 	case errors.Is(err, sat.ErrProtocol):
@@ -85,57 +85,27 @@ func code(err error) string {
 	}
 }
 
-// Run executes one command. Zero means the command completed with its required
-// checks, two means invalid command-line flags, and one means any other failure.
+// Run executes one command. Zero means help was displayed or the command met its
+// checks, two means invalid command-line usage, and one means any other failure.
 // SAT/UNSAT labels may still appear in diagnostic data on a failed command.
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 0 {
-		return report(stderr, "usage: calx project|reconstruct|encode|decode|solve|solve-finite [flags]", 2)
-	}
-	cmd := args[0]
-	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	input := fs.String("in", "-", "input file, or - for stdin")
-	format := fs.String("format", "json", "solve input: json or dimacs")
-	solver := fs.String("solver", "", "CaDiCaL executable")
-	solverHash := fs.String("solver-sha256", "", "pinned solver SHA256")
-	checker := fs.String("checker", "", "DRAT-trim executable")
-	checkerHash := fs.String("checker-sha256", "", "pinned checker SHA256")
-	artifact := fs.String("artifacts", "", "new artifact directory")
-	id := fs.String("id", "query", "query artifact ID")
-	timeout := fs.Duration("timeout", 30*time.Second, "total solve deadline")
-	if err := fs.Parse(args[1:]); err != nil {
-		return 2
-	}
-	if fs.NArg() != 0 {
-		return report(stderr, "unexpected positional arguments", 2)
-	}
-	switch cmd {
-	case "project", "reconstruct", "encode", "decode", "solve", "solve-finite":
-	default:
-		return report(stderr, "unknown command", 2)
-	}
-	if *format != "json" && !(cmd == "solve" && *format == "dimacs") {
-		return report(stderr, "unsupported input format", 2)
-	}
-	var raw []byte
-	var err error
-	if *input == "-" {
-		raw, err = io.ReadAll(io.LimitReader(stdin, maxInput+1))
-	} else {
-		var f *os.File
-		f, err = os.Open(*input)
-		if err == nil {
-			raw, err = io.ReadAll(io.LimitReader(f, maxInput+1))
-			err = errors.Join(err, f.Close())
+	var diagnostics bytes.Buffer
+	opts, err := parseOptions(args, &diagnostics)
+	if err != nil {
+		exit := 2
+		if errors.Is(err, flag.ErrHelp) {
+			exit = 0
 		}
+		message := strings.TrimSpace(diagnostics.String())
+		if message == "" {
+			message = err.Error()
+		}
+		return report(stderr, message, exit)
 	}
-	if len(raw) > maxInput {
-		err = errors.Join(err, sat.ErrLimit)
-	}
-	out := response{Outcome: "ERROR", InputSHA256: digest(raw)}
+	raw, err := readInput(opts.input, stdin)
+	out := response{Outcome: "ERROR", InputDigest: digest.Sum(raw)}
 	if err == nil {
-		out.Data, err = execute(ctx, cmd, *format, raw, cadical.Config{SolverPath: *solver, SolverSHA256: *solverHash, CheckerPath: *checker, CheckerSHA256: *checkerHash, ArtifactDir: *artifact, Limits: sat.Limits{Timeout: *timeout}}, *id)
+		out.Data, err = execute(ctx, opts.command, opts.format, raw, opts.tools, opts.id)
 	}
 	exit := 0
 	if err != nil {
@@ -148,6 +118,23 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return report(stderr, e.Error(), 1)
 	}
 	return exit
+}
+
+func readInput(path string, stdin io.Reader) (raw []byte, err error) {
+	reader := stdin
+	if path != "-" {
+		file, openErr := os.Open(path)
+		if openErr != nil {
+			return nil, openErr
+		}
+		defer func() { err = errors.Join(err, file.Close()) }()
+		reader = file
+	}
+	raw, err = io.ReadAll(io.LimitReader(reader, maxInput+1))
+	if len(raw) > maxInput {
+		err = errors.Join(err, sat.ErrLimit)
+	}
+	return raw, err
 }
 
 func report(w io.Writer, message string, exitCode int) int {
@@ -193,7 +180,7 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 	}
 	var c sat.CNF
 	var e *finite.Encoding
-	var queryHash string
+	var queryDigest digest.Digest
 	var err error
 	if cmd == "encode" || cmd == "solve-finite" {
 		var in finiteRequest
@@ -208,7 +195,7 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 		if err != nil {
 			return nil, err
 		}
-		queryHash, err = e.Digest()
+		queryDigest, err = e.Digest()
 		if err != nil {
 			return nil, err
 		}
@@ -222,11 +209,11 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 				return nil, err
 			}
 			return struct {
-				QuerySHA256 string            `json:"query_sha256"`
+				QueryDigest digest.Digest     `json:"query_digest"`
 				CNF         sat.CNF           `json:"cnf"`
 				Variables   []finite.Variable `json:"variables"`
 				DIMACS      string            `json:"dimacs"`
-			}{QuerySHA256: queryHash, CNF: c, Variables: variables, DIMACS: b.String()}, nil
+			}{QueryDigest: queryDigest, CNF: c, Variables: variables, DIMACS: b.String()}, nil
 		}
 	} else if format == "dimacs" {
 		c, err = sat.ReadDIMACS(bytes.NewReader(raw), sat.Limits{})
@@ -259,9 +246,9 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 	result, err := r.Solve(ctx, id, c)
 	data := struct {
 		Result      cadical.Result `json:"result"`
-		QuerySHA256 string         `json:"query_sha256,omitempty"`
+		QueryDigest digest.Digest  `json:"query_digest,omitempty"`
 		Trace       *finite.Trace  `json:"trace,omitempty"`
-	}{Result: result, QuerySHA256: queryHash}
+	}{Result: result, QueryDigest: queryDigest}
 	if err == nil {
 		err = result.Require(sat.Requirements{SATModelChecked: true, UNSATProofChecked: true})
 	}

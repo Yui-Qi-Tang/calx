@@ -174,7 +174,7 @@ func TestPouchConsumerErrorsLimitsAndLifecycle(t *testing.T) {
 		body string
 		want error
 	}{
-		{"echo 's UNKNOWN'; exit 0", sat.ErrGuarantee},
+		{"echo 's UNKNOWN'; exit 0", sat.ErrInconclusive},
 		{"echo 's SATISFIABLE'; echo 'v -1 0'; exit 10", sat.ErrValidation},
 		{"sleep 30", context.DeadlineExceeded},
 	} {

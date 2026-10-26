@@ -7,14 +7,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
 func TestCalxDeclaredConditions(t *testing.T) {
 	runner, err := cadical.New(cadical.Config{
-		SolverPath: os.Getenv("CALX_CADICAL"), SolverSHA256: os.Getenv("CALX_CADICAL_SHA256"),
-		CheckerPath: os.Getenv("CALX_DRAT"), CheckerSHA256: os.Getenv("CALX_DRAT_SHA256"),
+		SolverPath: os.Getenv("CALX_CADICAL"), SolverDigest: digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")),
+		CheckerPath: os.Getenv("CALX_DRAT"), CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")),
 		ArtifactDir: filepath.Join(os.Getenv("CALX_CONSUMER_OUTPUT"), "ahe-"+os.Getenv("CALX_CONSUMER_KIND")),
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
@@ -29,7 +30,7 @@ func (a calxAdapter) Solve(ctx context.Context, id string, formula CNF) (SolveRe
 	result, err := a.runner.Solve(ctx, id, input)
 	out := SolveResult{Status: string(result.Status), Assignment: result.Assignment}
 	for _, artifact := range result.Artifacts {
-		out.Artifacts = append(out.Artifacts, Artifact{ID: artifact.ID, SHA256: artifact.SHA256, Bytes: artifact.Bytes})
+		out.Artifacts = append(out.Artifacts, Artifact{ID: artifact.ID, SHA256: artifact.Digest.String(), Bytes: artifact.Bytes})
 	}
 	if err != nil {
 		return out, err
@@ -115,8 +116,8 @@ func TestCalxExactEncoding(t *testing.T) {
 
 func TestCalxNativeSearchAndIndependentReplay(t *testing.T) {
 	runner, err := cadical.New(cadical.Config{
-		SolverPath: os.Getenv("CALX_CADICAL"), SolverSHA256: os.Getenv("CALX_CADICAL_SHA256"),
-		CheckerPath: os.Getenv("CALX_DRAT"), CheckerSHA256: os.Getenv("CALX_DRAT_SHA256"),
+		SolverPath: os.Getenv("CALX_CADICAL"), SolverDigest: digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")),
+		CheckerPath: os.Getenv("CALX_DRAT"), CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")),
 		ArtifactDir: filepath.Join(os.Getenv("CALX_CONSUMER_OUTPUT"), "pouch-solver"),
 	})
 	if err != nil {

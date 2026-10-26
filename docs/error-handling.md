@@ -5,6 +5,26 @@ and every encoding stage. It no longer stores a delayed error in compiler state
 or returns a bare invalid variable ID. No failed metadata encoding is appended to
 the variable map. Cancellation, budget and input errors remain inspectable.
 
+## Inconclusive solver responses
+
+An explicit `s UNKNOWN` with the matching exit code returns
+`sat.ErrInconclusive` directly from Solve. It retains `Status: UNKNOWN`, exact
+inputs, solver output, process records and the artifact inventory. The saved
+`outcome.json` also records the inconclusive error. Require returns the same
+sentinel for an UNKNOWN result.
+
+| Condition | Go error | CLI code |
+| --- | --- | --- |
+| Explicit UNKNOWN response | `sat.ErrInconclusive` | `INCONCLUSIVE` |
+| Cancellation | `context.Canceled` | `CANCELED` |
+| Deadline exceeded | `context.DeadlineExceeded` | `TIMEOUT` |
+| Contradictory or malformed solver response | `sat.ErrProtocol` | `PROTOCOL` |
+
+Use `errors.Is`: context and artifact errors may be joined with the inconclusive
+error. CLI cancellation/deadline codes take precedence over INCONCLUSIVE. The
+UNKNOWN status is also the initial state before any backend answer, so status
+alone does not identify the error cause. None of these errors imply UNSAT.
+
 ## Variable roles
 
 VariableKind has the constants StateVariable, ActionVariable and
@@ -39,8 +59,8 @@ JSON tags omit only fields that do not apply to the validated role.
 | --- | --- |
 | Encoding.CNF | `(sat.CNF, error)` |
 | Encoding.Variables | `([]Variable, error)` |
-| Encoding.Digest | `(string, error)` |
-| cadical.Runner.Identity | `(string, error)` |
+| Encoding.Digest | `(digest.Digest, error)` |
+| cadical.Runner.Identity | `(digest.Digest, error)` |
 
 These reject nil/uninitialized receivers. An uninitialized Encoding must not
 produce an apparently valid empty CNF, since an empty formula means true.
@@ -59,3 +79,9 @@ stdout/stderr write failure.
 standard-library exclusions disabled and fmt included. The checker complements
 unit tests: it detects discarded errors, not the correctness of every branch.
 Application/library code does not depend on errcheck; it is a development tool.
+
+`digest.Parse` and `Digest.Validate` return `digest.ErrInvalid` for unsupported
+representations. `digest.Read` returns no value after a read failure and preserves
+the underlying I/O error. `Digest.Set` leaves the receiver unchanged on failure.
+The CLI parses digest flags before reading input; the runner revalidates native
+Config values, and Require rejects malformed check-target identifiers.

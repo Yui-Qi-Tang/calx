@@ -1,21 +1,15 @@
 package toolrun
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
-
-// Tool identifies an executable pinned by the caller.
-type Tool struct {
-	Name, Path, SHA256 string
-}
 
 // Prepare creates a new artifact root with private pinned executable copies.
 // On initialization failure, only the new directory is removed.
@@ -29,9 +23,9 @@ func Prepare(root string, tools ...Tool) (path string, err error) {
 	}
 	raw := make([][]byte, len(tools))
 	for i, t := range tools {
-		raw[i], err = readTool(t.Path, t.SHA256)
+		raw[i], err = readTool(t.Path, t.Digest)
 		if err != nil {
-			return "", fmt.Errorf("%s pin: %w", t.Name, err)
+			return "", fmt.Errorf("%s: %w", t.Name, err)
 		}
 	}
 	if err = os.Mkdir(path, 0700); err != nil {
@@ -45,12 +39,12 @@ func Prepare(root string, tools ...Tool) (path string, err error) {
 	if err = os.Mkdir(filepath.Join(path, "tools"), 0700); err != nil {
 		return path, err
 	}
-	pins := make(map[string]string, len(tools))
+	pins := make(map[string]digest.Digest, len(tools))
 	for i, t := range tools {
 		if err = os.WriteFile(filepath.Join(path, "tools", t.Name), raw[i], 0500); err != nil {
 			return path, err
 		}
-		pins[t.Name] = t.SHA256
+		pins[t.Name] = t.Digest
 	}
 	err = WriteJSON(filepath.Join(path, "tools.json"), pins)
 	return path, err
@@ -71,7 +65,7 @@ func Query(root, id string) (string, error) {
 }
 
 // Save writes exact input bytes and returns their digest.
-func Save(dir, name string, raw []byte) (string, error) {
+func Save(dir, name string, raw []byte) (digest.Digest, error) {
 	f, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return "", err
@@ -80,8 +74,7 @@ func Save(dir, name string, raw []byte) (string, error) {
 	if err = errors.Join(werr, f.Close()); err != nil {
 		return "", err
 	}
-	digest := sha256.Sum256(raw)
-	return hex.EncodeToString(digest[:]), nil
+	return digest.Sum(raw), nil
 }
 
 // Finish saves the partial outcome even after an execution error. The inventory

@@ -137,13 +137,13 @@ artifact root. For each Solve call, the runner:
 5. Requires a consistent exit code and exact status line, then checks the
    answer-specific evidence.
 
-The accepted backend branches are:
+The recognized backend responses are:
 
 | Branch | Required status/exit pair | Additional check |
 | --- | --- | --- |
 | SAT | Exit 10 and exact `s SATISFIABLE` | Decode a total assignment, save it, and check every original input clause |
 | UNSAT | Exit 20 and exact `s UNSATISFIABLE` | Require a regular proof within the accepted-size limit; run pinned DRAT-trim on the encoded CNF and proof |
-| UNKNOWN | Exit 0 and exact `s UNKNOWN` | Preserve UNKNOWN; it does not meet a conclusive consumer requirement |
+| UNKNOWN | Exit 0 and exact `s UNKNOWN` | Return `sat.ErrInconclusive`; retain UNKNOWN and diagnostic artifacts |
 
 The solver output must not contain a contradictory status line. The UNSAT
 checker must exit zero, emit exact `s VERIFIED`, and not emit `s NOT VERIFIED`.
@@ -151,9 +151,11 @@ The proof-size limit is checked after solver execution; it is not a disk quota.
 
 A check failure, process failure, cancellation, deadline or resource failure
 returns an error. If the backend had already answered SAT/UNSAT, that label can
-remain in the partial Result. The caller must inspect error separately. UNKNOWN
-can be a successful protocol exchange with nil error while still being rejected
-by Require.
+remain in the partial Result. The caller must inspect error separately. An
+explicit UNKNOWN is a recognized response that returns `sat.ErrInconclusive`;
+it never returns success merely because its exit/status pair is valid.
+If context cancellation or a deadline is also observed, its error is retained
+with `errors.Join`. CLI codes CANCELED and TIMEOUT take precedence over INCONCLUSIVE.
 
 Once the query directory exists, deferred Finish attempts to write outcome.json
 and an inventory of retained files on both successful and failed paths. A file
@@ -186,9 +188,9 @@ This diagram starts with the Result from the CNF submitted in the same call.
 The consumer first checks `err`, then invokes Require with its acceptance policy.
 Setting both requirement flags to true means “check the relevant answer branch”:
 
-- SAT needs its present, decoded, checked model bound to InputSHA256.
-- UNSAT needs its present, checked proof bound to FormulaSHA256.
-- UNKNOWN is never accepted by Require.
+- SAT needs its present, decoded, checked model bound to InputDigest.
+- UNSAT needs its present, checked proof bound to FormulaDigest.
+- UNKNOWN returns `sat.ErrInconclusive` from Require.
 
 SAT does not need `Proof.Checked=true`; the SAT example correctly has it false.
 Likewise, UNSAT does not provide a satisfying assignment to decode.
@@ -224,9 +226,9 @@ Require accepts that old result's own fields.
 | Identity | What it identifies |
 | --- | --- |
 | `Encoding.Digest()` | Compact Go JSON of the finite model and query |
-| `Result.InputSHA256` | Exact generated typed CNF input.json |
-| `Result.FormulaSHA256` | Exact generated DIMACS input.cnf |
-| CLI envelope `input_sha256` | Original transport input bytes before decoding |
+| `Result.InputDigest` | Exact generated typed CNF input.json |
+| `Result.FormulaDigest` | Exact generated DIMACS input.cnf |
+| CLI envelope `input_digest` | Original transport input bytes before decoding |
 
 These hashes identify different representations; equality is not expected.
 The CLI packages command outcome, data and error separately. For solve-finite,

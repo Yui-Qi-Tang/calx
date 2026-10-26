@@ -11,8 +11,11 @@ go run ./cmd/calx-check-consumers \
   --out artifacts/consumer-check-NEW
 ```
 
-Set CALX_CADICAL, CALX_CADICAL_SHA256, CALX_DRAT and CALX_DRAT_SHA256 to the
-trusted executable paths and pins first. `--calx` defaults to the current
+Set `CALX_CADICAL` and `CALX_DRAT` to the solver and proof-checker executable
+paths. Set `CALX_CADICAL_DIGEST` and `CALX_DRAT_DIGEST` to their expected file
+content digests: currently SHA-256 as 64 lowercase hexadecimal characters.
+The compatibility command reads these environment variables; its CLI subprocesses
+receive explicit tool flags. `--calx` defaults to the current
 checkout, and `--timeout` bounds the entire check (default ten minutes).
 
 The command creates a CLI binary and isolated external Go modules in the output.
@@ -43,3 +46,9 @@ The standalone finite CLI and rejection of unsupported typed input are also
 checked. A successful command produces results.json, source-manifest.json and
 per-command stdout/stderr/exit records. Failure returns an error and retains
 partial check results. Passing these selected checks is not native adoption.
+
+The checker expects `calx-cli/v2` and records newly generated source identities
+under `digest` keys. The frozen Lab manifest keeps its original `sha256` keys;
+that input schema is mapped to `digest.Digest` at the adapter boundary. The
+Pouch adapter similarly maps Calx artifact digests into the external snapshot's
+existing artifact fields. These mappings preserve the original digest values.

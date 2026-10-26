@@ -7,24 +7,26 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
 type labManifest struct {
-	Provenance string            `json:"provenance"`
-	Scope      string            `json:"scope"`
-	Sources    map[string]string `json:"sources"`
+	Provenance string                   `json:"provenance"`
+	Scope      string                   `json:"scope"`
+	Sources    map[string]digest.Digest `json:"sources"`
 	Fixtures   []struct {
-		Name   string     `json:"name"`
-		File   string     `json:"file"`
-		SHA256 string     `json:"sha256"`
-		Status sat.Status `json:"status"`
+		Name   string        `json:"name"`
+		File   string        `json:"file"`
+		Digest digest.Digest `json:"sha256"` // Frozen fixture schema; kept at this input boundary.
+		Status sat.Status    `json:"status"`
 	} `json:"fixtures"`
 }
 
 type solveEnvelope struct {
+	Schema  string `json:"schema_version"`
 	Outcome string `json:"outcome"`
 	Data    struct {
 		Result cadical.Result `json:"result"`
@@ -34,11 +36,17 @@ type solveEnvelope struct {
 }
 
 func (s *session) solveCLI(ctx context.Context, binary, name, command, inputFormat string, input []byte) (solveEnvelope, error) {
-	raw, err := s.command(ctx, s.config.CalxDir, name, input, nil, 0, binary,
-		command, "--format", inputFormat,
-		"--solver", s.config.Tools.SolverPath, "--solver-sha256", s.config.Tools.SolverSHA256,
-		"--checker", s.config.Tools.CheckerPath, "--checker-sha256", s.config.Tools.CheckerSHA256,
+	args := []string{command}
+	if command == "solve" {
+		args = append(args, "--format", inputFormat)
+	} else if inputFormat != "json" {
+		return solveEnvelope{}, fmt.Errorf("%s requires JSON input", command)
+	}
+	args = append(args,
+		"--solver", s.config.Tools.SolverPath, "--solver-digest", s.config.Tools.SolverDigest.String(),
+		"--checker", s.config.Tools.CheckerPath, "--checker-digest", s.config.Tools.CheckerDigest.String(),
 		"--artifacts", filepath.Join(s.config.OutputDir, name+"-artifacts"))
+	raw, err := s.command(ctx, s.config.CalxDir, name, input, nil, 0, binary, args...)
 	if err != nil {
 		return solveEnvelope{}, err
 	}
@@ -46,7 +54,7 @@ func (s *session) solveCLI(ctx context.Context, binary, name, command, inputForm
 	if err := json.Unmarshal(raw, &response); err != nil {
 		return response, err
 	}
-	if response.Outcome != "OK" || response.Error != nil {
+	if response.Schema != "calx-cli/v2" || response.Outcome != "OK" || response.Error != nil {
 		return response, fmt.Errorf("%s: CLI did not accept the input", name)
 	}
 	if err := response.Data.Result.Require(sat.Requirements{SATModelChecked: true, UNSATProofChecked: true}); err != nil {
@@ -69,7 +77,7 @@ func (s *session) checkLab(ctx context.Context, binary string) error {
 		if err != nil {
 			return err
 		}
-		if digest(source) != expected {
+		if digest.Sum(source) != expected {
 			return fmt.Errorf("Lab source differs from frozen fixture provenance: %s", relative)
 		}
 	}
@@ -82,7 +90,7 @@ func (s *session) checkLab(ctx context.Context, binary string) error {
 		if err != nil {
 			return err
 		}
-		if digest(input) != fixture.SHA256 {
+		if digest.Sum(input) != fixture.Digest {
 			return fmt.Errorf("frozen fixture digest mismatch: %s", fixture.Name)
 		}
 		result, err := s.solveCLI(ctx, binary, "lab-"+fixture.Name, "solve", "dimacs", input)

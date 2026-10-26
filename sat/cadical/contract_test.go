@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,31 +45,67 @@ func TestRejectedToolResponses(t *testing.T) {
 	}
 }
 
-func TestLimitsCancellationAndUnknown(t *testing.T) {
+func TestInconclusivePreservesStatusAndArtifacts(t *testing.T) {
 	r := fixtureRunner(t, "echo 's UNKNOWN'; exit 0", "exit 1", time.Second)
 	got, err := r.Solve(context.Background(), "unknown", tinyCNF())
-	if err != nil || got.Status != sat.Unknown || !errors.Is(got.Require(sat.Requirements{}), sat.ErrGuarantee) {
+	if !errors.Is(err, sat.ErrInconclusive) || got.Status != sat.Unknown || got.Model.Checked || got.Proof.Checked {
 		t.Fatalf("%+v %v", got, err)
 	}
+	if !errors.Is(got.Require(sat.Requirements{}), sat.ErrInconclusive) {
+		t.Fatal("Require lost the inconclusive classification")
+	}
+	files := map[string][]byte{}
+	for _, artifact := range got.Artifacts {
+		raw, readErr := r.ReadArtifact(artifact)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		files[filepath.Base(artifact.ID)] = raw
+	}
+	for _, name := range []string{"input.json", "input.cnf", "solver.stdout", "solver.stderr", "solver.json", "outcome.json"} {
+		if _, ok := files[name]; !ok {
+			t.Errorf("missing diagnostic artifact %s", name)
+		}
+	}
+	if string(files["solver.stdout"]) != "s UNKNOWN\n" {
+		t.Fatalf("solver output = %q", files["solver.stdout"])
+	}
+	var outcome struct {
+		Result sat.Result `json:"result"`
+		Error  string     `json:"error"`
+	}
+	if err := json.Unmarshal(files["outcome.json"], &outcome); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Result.Status != sat.Unknown || !strings.Contains(outcome.Error, sat.ErrInconclusive.Error()) {
+		t.Fatalf("saved outcome lost status or error: %+v", outcome)
+	}
+	if _, err := os.Stat(filepath.Join(r.root, "unknown", "checker.stdout")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("UNKNOWN unexpectedly ran the proof checker: %v", err)
+	}
+}
+
+func TestLimitsAndCancellation(t *testing.T) {
+	r := fixtureRunner(t, "echo 's UNKNOWN'; exit 0", "exit 1", time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = r.Solve(ctx, "canceled", tinyCNF()); !errors.Is(err, context.Canceled) {
+	if _, err := r.Solve(ctx, "canceled", tinyCNF()); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	r.config.Limits.MaxVariables = 1
 	c := tinyCNF()
 	c.Variables = append(c.Variables, sat.Variable{ID: 2})
-	if _, err = r.Solve(context.Background(), "limit", c); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "limit", c); !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 	r = fixtureRunner(t, "while :; do echo lots-of-output; done", "exit 1", time.Second)
 	r.config.Limits.MaxOutputBytes = 64
-	if _, err = r.Solve(context.Background(), "output", tinyCNF()); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "output", tinyCNF()); !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 	r = fixtureRunner(t, "printf 'proof-too-large' > proof.drat; echo 's UNSATISFIABLE'; exit 20", "exit 1", time.Second)
 	r.config.MaxProofBytes = 2
-	if _, err = r.Solve(context.Background(), "proof-limit", tinyCNF()); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "proof-limit", tinyCNF()); !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 }

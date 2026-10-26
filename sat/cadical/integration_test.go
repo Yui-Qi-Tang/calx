@@ -10,17 +10,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/internal/acceptance"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
 func TestRealTools(t *testing.T) {
-	for _, name := range []string{"CALX_CADICAL", "CALX_CADICAL_SHA256", "CALX_DRAT", "CALX_DRAT_SHA256", "CALX_ARTIFACTS"} {
+	for _, name := range []string{"CALX_CADICAL", "CALX_CADICAL_DIGEST", "CALX_DRAT", "CALX_DRAT_DIGEST", "CALX_ARTIFACTS"} {
 		if os.Getenv(name) == "" {
 			t.Fatalf("%s is required for explicit acceptance", name)
 		}
 	}
-	r, err := New(Config{SolverPath: os.Getenv("CALX_CADICAL"), SolverSHA256: os.Getenv("CALX_CADICAL_SHA256"), CheckerPath: os.Getenv("CALX_DRAT"), CheckerSHA256: os.Getenv("CALX_DRAT_SHA256"), ArtifactDir: filepath.Join(os.Getenv("CALX_ARTIFACTS"), "cadical")})
+	r, err := New(Config{SolverPath: os.Getenv("CALX_CADICAL"), SolverDigest: digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")), CheckerPath: os.Getenv("CALX_DRAT"), CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")), ArtifactDir: filepath.Join(os.Getenv("CALX_ARTIFACTS"), "cadical")})
 	if err != nil {
 		t.Fatal(err)
 	}

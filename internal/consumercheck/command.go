@@ -19,8 +19,8 @@ func (s *session) command(ctx context.Context, dir, name string, input []byte, e
 	command.Stdin = bytes.NewReader(input)
 	command.Env = replaceEnv(os.Environ(), map[string]string{
 		"GOWORK": "off", "CALX_CONSUMER_OUTPUT": s.config.OutputDir,
-		"CALX_CADICAL": s.config.Tools.SolverPath, "CALX_CADICAL_SHA256": s.config.Tools.SolverSHA256,
-		"CALX_DRAT": s.config.Tools.CheckerPath, "CALX_DRAT_SHA256": s.config.Tools.CheckerSHA256,
+		"CALX_CADICAL": s.config.Tools.SolverPath, "CALX_CADICAL_DIGEST": s.config.Tools.SolverDigest.String(),
+		"CALX_DRAT": s.config.Tools.CheckerPath, "CALX_DRAT_DIGEST": s.config.Tools.CheckerDigest.String(),
 	})
 	command.Env = replaceEnv(command.Env, extra)
 	var stdout, stderr bytes.Buffer

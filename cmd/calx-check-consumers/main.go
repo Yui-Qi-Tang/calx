@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/internal/consumercheck"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
@@ -33,8 +34,8 @@ func run() error {
 	timeout := flag.Duration("timeout", 10*time.Minute, "overall compatibility-check deadline")
 	flag.Parse()
 	config.Tools = cadical.Config{
-		SolverPath: os.Getenv("CALX_CADICAL"), SolverSHA256: os.Getenv("CALX_CADICAL_SHA256"),
-		CheckerPath: os.Getenv("CALX_DRAT"), CheckerSHA256: os.Getenv("CALX_DRAT_SHA256"),
+		SolverPath: os.Getenv("CALX_CADICAL"), SolverDigest: digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")),
+		CheckerPath: os.Getenv("CALX_DRAT"), CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")),
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

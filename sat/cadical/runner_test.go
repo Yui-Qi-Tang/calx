@@ -2,8 +2,6 @@ package cadical
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
-func pinnedScript(t *testing.T, body string) (string, string) {
+func pinnedScript(t *testing.T, body string) (string, digest.Digest) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("shell process fixture requires POSIX")
@@ -25,14 +24,13 @@ func pinnedScript(t *testing.T, body string) (string, string) {
 	if err := os.WriteFile(path, raw, 0700); err != nil {
 		t.Fatal(err)
 	}
-	hash := sha256.Sum256(raw)
-	return path, hex.EncodeToString(hash[:])
+	return path, digest.Sum(raw)
 }
 func fixtureRunner(t *testing.T, solverBody, checkerBody string, timeout time.Duration) *Runner {
 	t.Helper()
 	solver, solverHash := pinnedScript(t, solverBody)
 	checker, checkerHash := pinnedScript(t, checkerBody)
-	r, err := New(Config{SolverPath: solver, SolverSHA256: solverHash, CheckerPath: checker, CheckerSHA256: checkerHash, ArtifactDir: filepath.Join(t.TempDir(), "evidence"), Limits: sat.Limits{Timeout: timeout}})
+	r, err := New(Config{SolverPath: solver, SolverDigest: solverHash, CheckerPath: checker, CheckerDigest: checkerHash, ArtifactDir: filepath.Join(t.TempDir(), "evidence"), Limits: sat.Limits{Timeout: timeout}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,11 +89,14 @@ func TestTimeoutKillsToolGroupAndPreservesEvidence(t *testing.T) {
 func TestPinsAndPrivateCopy(t *testing.T) {
 	solver, hash := pinnedScript(t, "echo 's SATISFIABLE'; echo 'v 1 0'; exit 10")
 	checker, checkHash := pinnedScript(t, "exit 1")
-	cfg := Config{SolverPath: solver, SolverSHA256: strings.Repeat("0", 64), CheckerPath: checker, CheckerSHA256: checkHash, ArtifactDir: filepath.Join(t.TempDir(), "evidence")}
-	if _, err := New(cfg); err == nil {
-		t.Fatal("accepted wrong hash")
+	cfg := Config{SolverPath: solver, SolverDigest: digest.Digest(strings.Repeat("0", 64)), CheckerPath: checker, CheckerDigest: checkHash, ArtifactDir: filepath.Join(t.TempDir(), "evidence")}
+	if runner, err := New(cfg); !errors.Is(err, sat.ErrValidation) || runner != nil {
+		t.Fatalf("wrong digest returned runner %v, error %v", runner, err)
 	}
-	cfg.SolverSHA256 = hash
+	if _, err := os.Stat(cfg.ArtifactDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid digest created artifacts: %v", err)
+	}
+	cfg.SolverDigest = hash
 	r, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +107,35 @@ func TestPinsAndPrivateCopy(t *testing.T) {
 	result, err := r.Solve(context.Background(), "private", tinyCNF())
 	if err != nil || !(result.Model.Checked || result.Proof.Checked) {
 		t.Fatalf("caller edit changed pinned copy: %v", err)
+	}
+}
+
+func TestNewRequiresBothExecutablePathsAndDigests(t *testing.T) {
+	solver, solverDigest := pinnedScript(t, "exit 10")
+	checker, checkerDigest := pinnedScript(t, "exit 0")
+	for _, test := range []struct {
+		name   string
+		remove func(*Config)
+	}{
+		{name: "solver path", remove: func(c *Config) { c.SolverPath = "" }},
+		{name: "solver digest", remove: func(c *Config) { c.SolverDigest = "" }},
+		{name: "checker path", remove: func(c *Config) { c.CheckerPath = "" }},
+		{name: "checker digest", remove: func(c *Config) { c.CheckerDigest = "" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := Config{
+				SolverPath: solver, SolverDigest: solverDigest,
+				CheckerPath: checker, CheckerDigest: checkerDigest,
+				ArtifactDir: filepath.Join(t.TempDir(), "run"),
+			}
+			test.remove(&config)
+			if runner, err := New(config); !errors.Is(err, sat.ErrInput) || runner != nil {
+				t.Fatalf("runner = %v, error = %v, want invalid input", runner, err)
+			}
+			if _, err := os.Stat(config.ArtifactDir); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("missing tool input created artifacts: %v", err)
+			}
+		})
 	}
 }
 func TestAssignmentSyntax(t *testing.T) {

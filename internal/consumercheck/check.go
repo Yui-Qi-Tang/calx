@@ -4,9 +4,7 @@ package consumercheck
 
 import (
 	"context"
-	"crypto/sha256"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
@@ -51,8 +50,8 @@ type Summary struct {
 }
 
 type sourceIdentity struct {
-	Path   string `json:"path"`
-	SHA256 string `json:"sha256"`
+	Path   string        `json:"path"`
+	Digest digest.Digest `json:"digest"`
 }
 
 type session struct {
@@ -125,8 +124,8 @@ func (c *Config) validate() error {
 			return fmt.Errorf("output must be outside consumer checkouts")
 		}
 	}
-	if c.Tools.SolverPath == "" || c.Tools.SolverSHA256 == "" || c.Tools.CheckerPath == "" || c.Tools.CheckerSHA256 == "" {
-		return fmt.Errorf("both solver/checker paths and SHA256 pins are required")
+	if c.Tools.SolverPath == "" || c.Tools.SolverDigest == "" || c.Tools.CheckerPath == "" || c.Tools.CheckerDigest == "" {
+		return fmt.Errorf("both solver/checker executable paths and digests are required")
 	}
 	for _, path := range []*string{&c.Tools.SolverPath, &c.Tools.CheckerPath} {
 		absolute, err := filepath.Abs(*path)
@@ -145,11 +144,6 @@ func (c *Config) validate() error {
 	return nil
 }
 
-func digest(raw []byte) string {
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
-}
-
 func (s *session) source(kind, root, relative string) ([]byte, error) {
 	if !filepath.IsLocal(relative) {
 		return nil, fmt.Errorf("invalid source-relative path")
@@ -159,7 +153,7 @@ func (s *session) source(kind, root, relative string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.sources[kind+"/"+filepath.ToSlash(relative)] = sourceIdentity{Path: path, SHA256: digest(raw)}
+	s.sources[kind+"/"+filepath.ToSlash(relative)] = sourceIdentity{Path: path, Digest: digest.Sum(raw)}
 	return raw, nil
 }
 
@@ -169,7 +163,7 @@ func (s *session) checkSources() error {
 		if err != nil {
 			return fmt.Errorf("rechecking %s: %w", name, err)
 		}
-		if digest(raw) != source.SHA256 {
+		if digest.Sum(raw) != source.Digest {
 			return fmt.Errorf("source changed during check: %s", name)
 		}
 	}

@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Yui-Qi-Tang/calx/digest"
 )
 
 func TestIOAndSerializationErrorsRemainInspectable(t *testing.T) {
 	root := t.TempDir()
-	if _, err := readTool(filepath.Join(root, "missing"), strings.Repeat("a", 64)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := readTool(filepath.Join(root, "missing"), digest.Digest(strings.Repeat("a", 64))); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("lost executable open error", err)
 	}
 	var unsupported *json.UnsupportedTypeError

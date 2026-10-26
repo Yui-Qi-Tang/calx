@@ -8,14 +8,15 @@ import (
 	"log"
 	"os"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
 func main() {
-	horizon := flag.Int("horizon", 1, "exact number of actions")
-	artifacts := flag.String("artifacts", "artifacts/go-solve", "new artifact directory")
+	horizon := flag.Int("horizon", 1, "exact action count (not an upper bound); 0 checks the start state")
+	artifacts := flag.String("artifacts", "artifacts/go-solve", "new run directory; parent must exist and the run directory must not exist")
 	flag.Parse()
 	if err := run(context.Background(), *horizon, *artifacts); err != nil {
 		log.Fatal(err)
@@ -48,9 +49,9 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 	// 3. Configure pinned tools and solve the formula.
 	runner, err := cadical.New(cadical.Config{
 		SolverPath:    os.Getenv("CALX_CADICAL"),
-		SolverSHA256:  os.Getenv("CALX_CADICAL_SHA256"),
+		SolverDigest:  digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")),
 		CheckerPath:   os.Getenv("CALX_DRAT"),
-		CheckerSHA256: os.Getenv("CALX_DRAT_SHA256"),
+		CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")),
 		ArtifactDir:   artifacts,
 	})
 	if err != nil {

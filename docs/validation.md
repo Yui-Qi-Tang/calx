@@ -1,5 +1,82 @@
 # Validation
 
+## UNKNOWN error contract — 2026-10-20
+
+Explicit UNKNOWN responses now return `sat.ErrInconclusive` from Solve and
+Require. The result remains UNKNOWN, with no checked model/proof. The deferred
+artifact finalizer records the error and preserves the diagnostic files.
+Observed context errors are retained with `errors.Join`; CLI cancellation and
+timeout codes take precedence over INCONCLUSIVE.
+
+Observed locally on darwin/arm64 with Go 1.27.2:
+
+| Check | Observed result |
+| --- | --- |
+| `make verify` | PASS: formatting, strict errcheck, uncached tests, vet and build |
+| `make race` | PASS: full selection with serialized packages |
+| UNKNOWN protocol fixture | PASS: ErrInconclusive, UNKNOWN status, no checked model/proof, saved error and readable digest-verified diagnostic artifacts; checker not invoked |
+| CLI solve / solve-finite | PASS: exit 1, ERROR/INCONCLUSIVE, retained UNKNOWN and artifact inventory |
+| Context errors | Existing cancellation/deadline regressions PASS; joined inconclusive/context errors retain CANCELED/TIMEOUT CLI precedence |
+| Pouch adapter | UNKNOWN propagates ErrInconclusive without marking the result verified |
+| Documentation | 78 links/anchors checked; updated resolver diagram parsed, rendered and visually inspected |
+
+The UNKNOWN tests use explicit POSIX protocol fixtures. Earlier real-tool
+acceptance records below remain separate evidence; they were not rerun for this
+error-contract change.
+
+## Shared Digest type and CLI v2 — 2026-10-20
+
+`digest.Digest` now carries content identifiers throughout Calx. Generation and
+parsing are centralized in the leaf `digest` package. Calx-owned Go fields and
+new JSON records use Digest role names; the CLI emits `calx-cli/v2`.
+The prior checkpoint below describes its own v1-era output contract.
+
+Observed locally on darwin/arm64 with Go 1.27.2:
+
+| Check | Observed result |
+| --- | --- |
+| `make verify` | PASS: formatting, strict errcheck including digest, uncached tests, vet and build |
+| `make race` | PASS: full selection with serialized packages |
+| Digest value contract | PASS: known empty/abc vectors, streamed bytes and counts, partial-read failure, invalid text, unchanged receiver after failed Set, absent versus empty-content identity |
+| Typed acceptance and JSON | PASS: malformed or mismatched targets rejected; new role keys round-trip; legacy result keys cannot satisfy checked-result requirements |
+| Real pinned CaDiCaL/DRAT-trim | 522/522 subtests PASS |
+| CLI v2 | PASS: encode, finite SAT, DIMACS UNSAT; independent Python hashes match input, formula and every returned artifact digest and byte count |
+| Consumer checks | Core 1, MCP 1, Pouch Product 3 selected native-source tests and 13 frozen Lab CNFs PASS; generated source digest records independently rehashed |
+| Examples and documentation | Checked SAT/UNSAT examples PASS; 78 links/anchors and five embedded Go examples checked; both changed SVGs parsed, rendered and visually inspected |
+
+Evidence is retained in the ignored `artifacts/digest-type-20261020-zec90rod/`
+directory, including `summary.json`, real-tool events, CLI results, example
+outcomes and consumer logs. The frozen Lab manifest and external Pouch fields
+are translated at adapter boundaries; their original formats are preserved.
+This remains bounded consumer compatibility, not formal consumer migration or
+a fresh Lab encoder/semantic-replay experiment.
+
+## Tool configuration refactor — 2026-10-19
+
+The pre-refactor source checkpoint is `2c36e43`. Tool inputs now use Digest names;
+result JSON and its existing SHA256 evidence bindings are preserved. CLI flags
+are command-specific, help exits successfully, and required tool settings are
+checked before reading input. Executable digest checks retain the same SHA-256
+format and reject mismatches before creating run artifacts.
+
+Observed locally on darwin/arm64 with Go 1.27.2:
+
+| Check | Observed result |
+| --- | --- |
+| `make verify` | PASS: formatting, strict errcheck, uncached tests, vet and build |
+| `make race` | PASS: full selection with serialized packages |
+| CLI and tool-input regressions | PASS: applicable help, missing/obsolete flags, explicit environment boundary, digest syntax/mismatch, error identity and no artifacts after rejected tool input |
+| Real pinned CaDiCaL/DRAT-trim | 522/522 subtests PASS using the new environment names |
+| Solve examples | Checked SAT trace and checked UNSAT proof PASS; existing result digest fields verified |
+| Consumer checks | Core 1, MCP 1, Pouch Product 3 selected native-source tests and 13 frozen Lab CNFs PASS; source identities rechecked |
+| Documentation | 76 local links/anchors and all five embedded Go examples match their sources |
+
+Local evidence is retained in the ignored
+`artifacts/digest-refactor-20261019-z_a6r7e3/` directory, including `summary.json`,
+real-tool events, example outcomes, command help and consumer results.
+The Lab scope remains frozen-input compatibility; this run does not execute
+its encoder or semantic replay. Formal consumer checkouts were not migrated.
+
 ## Validation checkpoint — 2026-10-19
 
 Observed locally on darwin/arm64 with Go 1.27.2. This revision replaces the

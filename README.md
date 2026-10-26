@@ -6,6 +6,7 @@ imported independently.
 
 | Package | Responsibility | Example |
 | --- | --- | --- |
+| `digest` | Shared content-digest value, generation, parsing and validation | [Digest API](docs/data-structures.md#content-digests) |
 | `incidence` | Directed multigraph topology ↔ source/target incidence matrices, IDs and opaque relation masks | [Project and reconstruct](#1-incidence-project-and-reconstruct) |
 | `finite` | Validated categorical model → operation matrix → exact-length CNF; assignment → trace | [Matrices and CNF](#2-finite-project-and-compile) |
 | `sat` | CNF, DIMACS, total-assignment checking, limits and explicit validation records | [Check a formula](#3-sat-check-a-formula) |
@@ -315,14 +316,15 @@ import (
 	"log"
 	"os"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
 func main() {
-	horizon := flag.Int("horizon", 1, "exact number of actions")
-	artifacts := flag.String("artifacts", "artifacts/go-solve", "new artifact directory")
+	horizon := flag.Int("horizon", 1, "exact action count (not an upper bound); 0 checks the start state")
+	artifacts := flag.String("artifacts", "artifacts/go-solve", "new run directory; parent must exist and the run directory must not exist")
 	flag.Parse()
 	if err := run(context.Background(), *horizon, *artifacts); err != nil {
 		log.Fatal(err)
@@ -355,9 +357,9 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 	// 3. Configure pinned tools and solve the formula.
 	runner, err := cadical.New(cadical.Config{
 		SolverPath:    os.Getenv("CALX_CADICAL"),
-		SolverSHA256:  os.Getenv("CALX_CADICAL_SHA256"),
+		SolverDigest:  digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")),
 		CheckerPath:   os.Getenv("CALX_DRAT"),
-		CheckerSHA256: os.Getenv("CALX_DRAT_SHA256"),
+		CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")),
 		ArtifactDir:   artifacts,
 	})
 	if err != nil {
@@ -397,8 +399,34 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 }
 ```
 
-Set `CALX_CADICAL`, `CALX_CADICAL_SHA256`, `CALX_DRAT` and `CALX_DRAT_SHA256` to
-your executable paths and lowercase SHA-256 pins. Then run:
+The Go solve example reads these four environment variables:
+
+| Variable | Value |
+| --- | --- |
+| `CALX_CADICAL` | File path to the CaDiCaL executable |
+| `CALX_CADICAL_DIGEST` | Expected digest of that executable's complete contents |
+| `CALX_DRAT` | File path to the DRAT-trim proof-checker executable |
+| `CALX_DRAT_DIGEST` | Expected digest of that checker's complete contents |
+
+Both tools and both digests are required during initialization, including runs
+that ultimately return SAT. A digest identifies the executable file; it is not
+the digest of the model, CNF or proof. The current digest format is **SHA-256 as
+64 lowercase hexadecimal characters, without a prefix**. These names describe
+the value's role; the implementation currently supports this one algorithm.
+
+For local executables you have selected, configure the paths and compute their
+digests on macOS:
+
+```sh
+export CALX_CADICAL=/absolute/path/to/cadical
+export CALX_DRAT=/absolute/path/to/drat-trim
+export CALX_CADICAL_DIGEST="$(shasum -a 256 "$CALX_CADICAL" | awk '{print $1}')"
+export CALX_DRAT_DIGEST="$(shasum -a 256 "$CALX_DRAT" | awk '{print $1}')"
+```
+
+`-horizon` is the exact action count, not an upper bound. Zero tests whether the
+start already meets the goal. `-artifacts` names a new run directory; its parent
+must exist and the run directory must not exist. Then run:
 
 ```sh
 mkdir -p artifacts
@@ -441,23 +469,66 @@ bin/calx project --in examples/graph.json
 bin/calx encode --in examples/finite.json
 ```
 
-For actual solving, supply trusted executables and their lowercase SHA-256 pins.
-Calx does not download or bundle them. The artifact parent must exist and the
-specific run directory must be new:
+The standalone CLI takes tool settings through flags. It does **not** read the
+`CALX_*` environment variables automatically; the shell expands them in the
+command below. Calx does not download or bundle the executables.
+
+For actual solving, pass both executable paths, their expected digests, and a
+new artifact directory whose parent already exists:
 
 ```sh
 mkdir -p artifacts
 bin/calx solve-finite --in examples/finite.json \
-  --solver "$CALX_CADICAL" --solver-sha256 "$CALX_CADICAL_SHA256" \
-  --checker "$CALX_DRAT" --checker-sha256 "$CALX_DRAT_SHA256" \
+  --solver "$CALX_CADICAL" --solver-digest "$CALX_CADICAL_DIGEST" \
+  --checker "$CALX_DRAT" --checker-digest "$CALX_DRAT_DIGEST" \
   --artifacts artifacts/example
 ```
 
-Other commands: `reconstruct`, `decode`, and `solve --format dimacs`.
-`--in -` reads stdin. All command output is a versioned JSON envelope; exit 0
-means that command met its checks, exit 1 is failure, and exit 2 is a flag/usage
-error. An error response can retain a backend SAT/UNSAT label for diagnosis;
-inspect `outcome`, `error` and validation records together.
+Use `bin/calx --help` to list commands, or `bin/calx solve --help` for the
+flags accepted by one command. Help exits successfully without reading input.
+
+| Flag | Applies to | Meaning and default |
+| --- | --- | --- |
+| `--in FILE` | All commands | Input file; `-` reads stdin (default). Maximum 16 MiB. |
+| `--format FORMAT` | `solve` | CNF format: `json` (default) or `dimacs`. Other commands take JSON without this flag. |
+| `--solver PATH` | `solve`, `solve-finite` | Required CaDiCaL executable file path, not a shell command. |
+| `--solver-digest DIGEST` | `solve`, `solve-finite` | Required expected digest of solver bytes, in the format described above. |
+| `--checker PATH` | `solve`, `solve-finite` | Required DRAT-trim executable file path, including runs that return SAT. |
+| `--checker-digest DIGEST` | `solve`, `solve-finite` | Required expected digest of checker bytes. |
+| `--artifacts DIR` | `solve`, `solve-finite` | Required new run directory. Parent must exist; DIR must not exist. Stores private tools, inputs, output and validation records. |
+| `--id NAME` | `solve`, `solve-finite` | Query subdirectory name, default `query`. 1–80 ASCII letters, digits, `_` or `-`; starts with a letter or digit. |
+| `--timeout DURATION` | `solve`, `solve-finite` | Default `30s`; solver and checker share the deadline. Excludes model compilation and tool preparation. `0` selects the default; negatives fail. |
+
+Other commands include `reconstruct` and `decode`. Command results use a versioned
+JSON envelope; help and usage diagnostics go to stderr. Exit 0 means successful
+help or an operation that met its checks, exit 1 is failure, and exit 2 is a
+flag/usage error. Missing required flags and flags for other commands are
+rejected before reading input. An error response can retain a backend
+SAT/UNSAT/UNKNOWN label for diagnosis; inspect `outcome`, `error` and validation
+records together.
+
+An explicit UNKNOWN returns `sat.ErrInconclusive` from the Go solver API. The
+CLI exits 1 with outcome ERROR and code INCONCLUSIVE, preserving the UNKNOWN
+status and diagnostic artifacts. Cancellation and deadline errors are retained;
+when joined with ErrInconclusive, CLI codes CANCELED/TIMEOUT take precedence.
+
+Content identifiers use the shared `digest.Digest` type (`type Digest string`).
+`digest.Sum(data)` creates a value; `digest.Read(reader)` hashes a stream;
+`digest.Parse(text)` validates external text. Values provide `String`, `Validate`
+and `Set` methods. A direct cast or JSON decoding does not validate the contents;
+the tool runner and result-acceptance paths perform those boundary checks.
+
+This experimental v0 now emits **`calx-cli/v2`**. Go fields use `InputDigest`,
+`FormulaDigest`, `SolverDigest`, `CheckerDigest`, `TargetDigest` and
+`Artifact.Digest`; JSON uses `*_digest` and artifact `digest`. Query identifiers
+are `query_digest`. The previous field names and v1 output schema have no aliases.
+Update consumers explicitly; existing evidence files and frozen consumer fixtures
+are not rewritten. The identified bytes and digest algorithm are unchanged.
+
+Tool inputs use `CALX_*_DIGEST` and `--solver-digest`/`--checker-digest`.
+`cadical.Config` accepts typed digests. In the Go example, environment strings
+are converted to that type and validated by `cadical.New`. Applications can use
+`digest.Parse` for earlier validation.
 
 ## Verification
 

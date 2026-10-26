@@ -11,7 +11,7 @@
 <text x="40" y="94" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >The backend answer, checked evidence and returned error remain separate throughout the call.</text>
 <rect x="40" y="145" width="1520" height="100" rx="14" fill="#f5f3ff" stroke="#ddd6fe" />
 <text x="64" y="182" font-size="22" fill="#7c3aed" font-weight="700" text-anchor="start" >cadical.New</text>
-<text x="275" y="182" font-size="19" fill="#334155" font-weight="400" text-anchor="start" >Check executable SHA256 pins → copy tools into a fresh private root → record effective limits</text>
+<text x="275" y="182" font-size="19" fill="#334155" font-weight="400" text-anchor="start" >Check executable digests → copy tools into a fresh private root → record effective limits</text>
 <text x="64" y="220" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Setup once; each Solve call then gets its own query directory and a shared solver/checker deadline.</text>
 <rect x="40" y="285" width="310" height="110" rx="14" fill="white" stroke="#e2e8f0" />
 <path d="M58 303 V377" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
@@ -47,7 +47,7 @@
 <text x="74" y="714" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Save assignment.json</text>
 <text x="74" y="741" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Check every original CNF clause</text>
 <text x="74" y="768" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Model.Checked = true</text>
-<text x="74" y="795" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >TargetSHA256 = InputSHA256</text>
+<text x="74" y="795" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >TargetDigest = InputDigest</text>
 <rect x="565" y="590" width="470" height="285" rx="14" fill="white" stroke="#e2e8f0" />
 <path d="M583 608 V857" stroke="#7c3aed" stroke-width="4" stroke-linecap="round"/>
 <text x="599" y="628" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >UNSAT branch (exit 20)</text>
@@ -56,15 +56,15 @@
 <text x="599" y="714" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Run DRAT-trim on input.cnf + proof</text>
 <text x="599" y="741" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Require exit 0 + exact s VERIFIED</text>
 <text x="599" y="768" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Proof.Checked = true</text>
-<text x="599" y="795" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >TargetSHA256 = FormulaSHA256</text>
+<text x="599" y="795" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >TargetDigest = FormulaDigest</text>
 <rect x="1090" y="590" width="470" height="285" rx="14" fill="white" stroke="#e2e8f0" />
 <path d="M1108 608 V857" stroke="#b45309" stroke-width="4" stroke-linecap="round"/>
 <text x="1124" y="628" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >UNKNOWN branch (exit 0)</text>
 <text x="1124" y="660" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Exact line: s UNKNOWN</text>
 <text x="1124" y="687" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Return Status = UNKNOWN</text>
 <text x="1124" y="714" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >No conclusive model/proof guarantee</text>
-<text x="1124" y="741" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >May return with nil error</text>
-<text x="1124" y="768" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Consumer Require rejects UNKNOWN</text>
+<text x="1124" y="741" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Return error: ErrInconclusive</text>
+<text x="1124" y="768" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Retain diagnostic artifacts</text>
 <rect x="40" y="905" width="1520" height="62" rx="14" fill="#fef2f2" stroke="#fecaca" />
 <text x="64" y="931" font-size="18" fill="#b91c1c" font-weight="600" text-anchor="start" >Protocol mismatch, invalid model/proof, timeout, cancellation or resource failure → error.</text>
 <text x="64" y="955" font-size="17" fill="#b91c1c" font-weight="400" text-anchor="start" >A partial result may retain SAT/UNSAT. Errors are never converted into an UNSAT conclusion.</text>

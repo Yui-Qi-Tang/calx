@@ -10,7 +10,7 @@ import (
 
 // ReadDIMACS parses bounded DIMACS CNF. Comments and whitespace carry no logical
 // force. The caller retains original bytes if their exact digest matters; the
-// runner's FormulaSHA256 identifies its own emitted DIMACS representation.
+// runner's FormulaDigest identifies its own emitted DIMACS representation.
 func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 	l, err := limits.WithDefaults()
 	if err != nil {

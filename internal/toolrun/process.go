@@ -4,8 +4,6 @@ package toolrun
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,45 +14,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
-
-func readTool(path, expected string) (raw []byte, err error) {
-	hash, err := hex.DecodeString(expected)
-	if err != nil {
-		return nil, fmt.Errorf("decoding executable sha256: %w", err)
-	}
-	if len(hash) != 32 || expected != hex.EncodeToString(hash) {
-		return nil, fmt.Errorf("lowercase sha256 is required")
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("opening executable: %w", err)
-	}
-	defer func() { err = errors.Join(err, f.Close()) }()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("inspecting executable: %w", err)
-	}
-	if !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
-		return nil, fmt.Errorf("not an executable regular file")
-	}
-	if info.Size() > 64<<20 {
-		return nil, fmt.Errorf("%w: executable size", sat.ErrLimit)
-	}
-	raw, err = io.ReadAll(io.LimitReader(f, (64<<20)+1))
-	if err != nil {
-		return nil, fmt.Errorf("reading executable: %w", err)
-	}
-	if len(raw) > 64<<20 {
-		return nil, fmt.Errorf("%w: executable size", sat.ErrLimit)
-	}
-	digest := sha256.Sum256(raw)
-	if hex.EncodeToString(digest[:]) != expected {
-		return nil, fmt.Errorf("executable hash mismatch")
-	}
-	return raw, nil
-}
 
 // Execution records the process contract and termination cause.
 type Execution struct {
@@ -173,12 +135,11 @@ func Inventory(dir, id string) ([]sat.Artifact, error) {
 		if err != nil {
 			return artifacts, fmt.Errorf("opening evidence: %w", err)
 		}
-		hash := sha256.New()
-		n, copyErr := io.Copy(hash, f)
+		contentDigest, n, copyErr := digest.Read(f)
 		if err := errors.Join(copyErr, f.Close()); err != nil {
 			return artifacts, fmt.Errorf("hashing evidence: %w", err)
 		}
-		artifacts = append(artifacts, sat.Artifact{ID: id + "/" + entry.Name(), SHA256: hex.EncodeToString(hash.Sum(nil)), Bytes: n})
+		artifacts = append(artifacts, sat.Artifact{ID: id + "/" + entry.Name(), Digest: contentDigest, Bytes: n})
 	}
 	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].ID < artifacts[j].ID })
 	return artifacts, nil

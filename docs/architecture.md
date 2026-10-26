@@ -3,8 +3,10 @@
 Calx is one module with separately importable packages and a thin CLI. Public
 packages depend on neither AHE nor Pouch. The current implementation has no
 third-party Go dependency. `sat/cadical` uses `internal/toolrun` and `sat`;
-`finite` uses `sat`; `incidence` is independent of both. CLI wiring lives in
-`internal/cli` and `cmd/calx`.
+`finite` uses `sat`; `incidence` is independent of both. The leaf package
+`digest` owns content identifiers, their current algorithm and textual format.
+`finite`, `sat`, `sat/cadical`, tool execution and CLI code use that shared type.
+CLI wiring lives in `internal/cli` and `cmd/calx`.
 
 ## Package dependencies
 
@@ -22,6 +24,11 @@ flowchart TD
     Cadical --> SAT
     Cadical --> Toolrun["internal/toolrun"]
     Toolrun --> SAT
+    SAT --> Digest["digest"]
+    Finite --> Digest
+    Cadical --> Digest
+    Toolrun --> Digest
+    CLI --> Digest
 ```
 
 ## Data flow

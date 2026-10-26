@@ -35,6 +35,29 @@ Matrix array indices and time indices are zero-based. CNF variable IDs are
 one-based. IDs such as `a`, `e1` and `enable` are caller-chosen strings, not
 array positions.
 
+## Content digests
+
+Source: [digest/digest.go](../digest/digest.go).
+
+`digest.Digest` is a defined string type shared by finite encodings, solver
+configuration, results and retained artifacts. The algorithm and textual parser
+live in this package. Current values are SHA-256 encoded as 64 lowercase hex
+characters without a prefix. JSON values remain strings.
+
+| API | Return | Responsibility |
+| --- | --- | --- |
+| `digest.Sum(data)` | `Digest` | Identify the exact supplied bytes |
+| `digest.Read(reader)` | `Digest, int64, error` | Hash a stream, report consumed bytes; return no digest on read failure |
+| `digest.Parse(text)` | `Digest, error` | Parse the supported textual format |
+| `d.String()` | `string` | Return the encoded value |
+| `d.Validate()` | `error` | Reject an absent or malformed value |
+| `d.Set(text)` | `error` | Parse then assign; implements `flag.Value` and preserves d on failure |
+
+The zero value means absent. `digest.Sum(nil)` is a valid digest of empty content
+and differs from that zero value. Direct casts and JSON decoding are unchecked;
+acceptance boundaries must validate before trusting the representation. A valid
+digest does not establish source truth, model validity or proof verification.
+
 ## Graphs and incidence projections
 
 Source: [incidence/incidence.go](../incidence/incidence.go).
@@ -170,7 +193,7 @@ Encoding has private fields and is created by Compile. Its public accessors are:
 | --- | --- | --- |
 | `CNF()` | `sat.CNF, error` | Independent copy of the compiled formula and metadata |
 | `Variables()` | `[]finite.Variable, error` | Copy of the variable-to-model mapping |
-| `Digest()` | `string, error` | Content digest of the serialized model and query |
+| `Digest()` | `digest.Digest, error` | Content digest of the serialized model and query |
 | `Decode(assignment)` | `Trace, error` | Check assignment against the owned CNF, then decode |
 
 Each finite Variable has:
@@ -228,10 +251,10 @@ exactly once, including false values and variables absent from all clauses.
 | --- | --- | --- | --- |
 | `Status` | `status` | `sat.Status` | Backend answer: SAT, UNSAT or UNKNOWN |
 | `Profile` | `profile` | `string` | Current runner formula profile: `cnf/v0` |
-| `InputSHA256` | `input_sha256` | `string` | Exact generated input.json identity |
-| `FormulaSHA256` | `formula_sha256` | `string` | Exact generated input.cnf identity |
-| `SolverSHA256` | `solver_sha256` | `string` | Pinned solver executable identity |
-| `CheckerSHA256` | `checker_sha256` | `string` | Pinned proof-checker identity |
+| `InputDigest` | `input_digest` | `digest.Digest` | Exact generated input.json identity |
+| `FormulaDigest` | `formula_digest` | `digest.Digest` | Exact generated input.cnf identity |
+| `SolverDigest` | `solver_digest` | `digest.Digest` | Pinned solver executable identity |
+| `CheckerDigest` | `checker_digest` | `digest.Digest` | Pinned proof-checker identity |
 | `Model` | `model` | `Validation` | Assignment availability, decoding and checking |
 | `Proof` | `proof` | `Validation` | Proof availability and checking |
 | `Artifacts` | `artifacts` | `[]Artifact` | Retained per-query file identities |
@@ -249,9 +272,9 @@ separate Go return value, not a field in sat.Result.
 | `Validation.Decoded` | `decoded` | `bool` | Model was decoded; not a proof-syntax verdict |
 | `Validation.Checked` | `checked` | `bool` | The reported check completed successfully |
 | `Validation.Method` | `method` | `string` | Check method, set after success |
-| `Validation.TargetSHA256` | `target_sha256` | `string` | Model targets InputSHA256; proof targets FormulaSHA256 |
+| `Validation.TargetDigest` | `target_digest` | `digest.Digest` | Model targets InputDigest; proof targets FormulaDigest |
 | `Artifact.ID` | `id` | `string` | File identity relative to the runner's artifact root |
-| `Artifact.SHA256` | `sha256` | `string` | Digest of exact file bytes |
+| `Artifact.Digest` | `digest` | `digest.Digest` | Digest of exact file bytes |
 | `Artifact.Bytes` | `bytes` | `int64` | File size |
 
 Requirements is a Go acceptance-policy type with `SATModelChecked bool` and
@@ -274,14 +297,18 @@ These are Go API configuration fields, not additional CLI JSON request fields.
 
 | `cadical.Config` field | Type | Purpose |
 | --- | --- | --- |
-| `SolverPath`, `SolverSHA256` | `string` each | Solver executable and expected pin |
-| `CheckerPath`, `CheckerSHA256` | `string` each | Checker executable and expected pin |
+| `SolverPath`, `SolverDigest` | `string`, `digest.Digest` | Solver executable file path and expected content digest |
+| `CheckerPath`, `CheckerDigest` | `string`, `digest.Digest` | Checker executable file path and expected content digest |
 | `ArtifactDir` | `string` | New directory for private tool copies and query outputs |
 | `Limits` | `sat.Limits` | Per-query budgets |
 | `MaxProofBytes` | `int64` | Accepted proof size; zero selects 64 MiB |
 
+Both executable paths and digests are required. `New` validates typed digest
+values before using them, including values constructed by a direct cast.
+`ArtifactDir` must not exist and its parent must already exist.
+
 Runner owns private configuration and tool copies. `New` constructs it; `Solve`
-returns `cadical.Result, error`; `Identity` returns `(string, error)` for effective tools/limits;
+returns `cadical.Result, error`; `Identity` returns `(digest.Digest, error)` for effective tools/limits;
 `ReadArtifact` verifies retained bytes against an Artifact. Callers own retention.
 
 ## CLI request and response structures
@@ -294,30 +321,33 @@ implicitly accepted as request schemas.
 | --- | --- | --- |
 | `project` | `incidence.Graph` | `incidence.Projection` |
 | `reconstruct` | `incidence.Projection` | `incidence.Graph` |
-| `encode` | `{model,query,options?}` | `{query_sha256,cnf,variables,dimacs}` |
+| `encode` | `{model,query,options?}` | `{query_digest,cnf,variables,dimacs}` |
 | `decode` | `{request:{model,query,options?},assignment}` | `finite.Trace` |
 | `solve` | `sat.CNF`, or DIMACS with `--format dimacs` | `{result}` |
-| `solve-finite` | `{model,query,options?}` | `{result,query_sha256,trace?}` |
+| `solve-finite` | `{model,query,options?}` | `{result,query_digest,trace?}` |
 
 `encode.variables` is `[]finite.Variable`, while `encode.cnf.variables` is
 `[]sat.Variable`. `trace` is present only after successful SAT decoding.
-`query_sha256` binds the finite model/query; it differs from the formula digest.
+`query_digest` binds the finite model/query; it differs from the formula digest.
 
 Every response is wrapped in this envelope:
 
 | JSON key | Type | Meaning |
 | --- | --- | --- |
-| `schema_version` | string | `calx-cli/v1` |
+| `schema_version` | string | `calx-cli/v2` |
 | `outcome` | string | OK or ERROR for this command |
-| `input_sha256` | string | Exact original transport bytes, before JSON/DIMACS decoding |
+| `input_digest` | string (Go: `digest.Digest`) | Exact original transport bytes, before JSON/DIMACS decoding |
 | `data` | object, optional | Command output or retained diagnostic result |
 | `error` | object, optional | `{code:string,message:string}` |
 
-Error codes are CANCELED, TIMEOUT, LIMIT, UNSUPPORTED, GUARANTEE, PROTOCOL,
-VALIDATION, or INPUT_OR_EXECUTION. Go Solve errors are carried here separately
+Error codes are CANCELED, TIMEOUT, LIMIT, UNSUPPORTED, INCONCLUSIVE, GUARANTEE,
+PROTOCOL, VALIDATION, or INPUT_OR_EXECUTION. Go Solve errors are carried here separately
 from `data.result.status`. Exit 0 means the command met its checks; exit 1 is
 failure; exit 2 is flag/usage failure, which prints usage/error text to stderr
 rather than a JSON envelope. Project/encode OK does not mean SAT was run.
+An explicit UNKNOWN produces exit 1, outcome ERROR and code INCONCLUSIVE while
+retaining `data.result.status: UNKNOWN` and the diagnostic artifact inventory.
+Joined cancellation/deadline errors produce CANCELED/TIMEOUT instead.
 
 CLI JSON uses exact field names and rejects duplicate/unknown fields, null and
 trailing values. Native Go nil slices/maps may be usable zero values; direct

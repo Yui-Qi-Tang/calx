@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/internal/toolrun"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
@@ -18,11 +20,16 @@ import (
 // Config pins both tools and a new artifact directory. MaxProofBytes limits
 // proofs accepted after solver exit, not disk consumption during execution.
 type Config struct {
-	SolverPath, SolverSHA256   string
-	CheckerPath, CheckerSHA256 string
-	ArtifactDir                string
-	Limits                     sat.Limits
-	MaxProofBytes              int64
+	SolverPath  string // Path to the CaDiCaL executable.
+	CheckerPath string // Path to the DRAT-trim executable; required even for SAT.
+	// Digests identify the exact executable bytes. The current format is
+	// SHA-256 encoded as 64 lowercase hexadecimal characters, without a prefix.
+	SolverDigest  digest.Digest
+	CheckerDigest digest.Digest
+	// ArtifactDir must not exist; its parent directory must already exist.
+	ArtifactDir   string
+	Limits        sat.Limits
+	MaxProofBytes int64
 }
 
 // Runner keeps private tool copies. Concurrent Solve calls use distinct query
@@ -53,8 +60,8 @@ func New(c Config) (*Runner, error) {
 		c.MaxProofBytes = 64 << 20
 	}
 	root, err := toolrun.Prepare(c.ArtifactDir,
-		toolrun.Tool{Name: "cadical", Path: c.SolverPath, SHA256: c.SolverSHA256},
-		toolrun.Tool{Name: "drat-trim", Path: c.CheckerPath, SHA256: c.CheckerSHA256})
+		toolrun.Tool{Name: "cadical", Path: c.SolverPath, Digest: c.SolverDigest},
+		toolrun.Tool{Name: "drat-trim", Path: c.CheckerPath, Digest: c.CheckerDigest})
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +76,13 @@ func New(c Config) (*Runner, error) {
 
 // Solve retains exact inputs, metadata, output and check records. All processes
 // share one deadline. It never silently fills an incomplete assignment.
+// An explicit UNKNOWN response returns sat.ErrInconclusive with its diagnostics;
+// observed cancellation or deadline errors remain discoverable with errors.Is.
 func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Result, err error) {
 	if r == nil || r.root == "" {
 		return Result{Result: sat.Result{Status: sat.Unknown}}, fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
 	}
-	result.Result = sat.Result{Status: sat.Unknown, Profile: "cnf/v0", SolverSHA256: r.config.SolverSHA256, CheckerSHA256: r.config.CheckerSHA256}
+	result.Result = sat.Result{Status: sat.Unknown, Profile: "cnf/v0", SolverDigest: r.config.SolverDigest, CheckerDigest: r.config.CheckerDigest}
 	ctx, cancel := context.WithTimeout(ctx, r.config.Limits.Timeout)
 	defer cancel()
 	if err = ctx.Err(); err != nil {
@@ -94,7 +103,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 	if len(input) > r.config.Limits.MaxInputBytes {
 		return result, sat.ErrLimit
 	}
-	result.InputSHA256, err = toolrun.Save(dir, "input.json", input)
+	result.InputDigest, err = toolrun.Save(dir, "input.json", input)
 	if err != nil {
 		return result, err
 	}
@@ -105,7 +114,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 	if formula.Len() > r.config.Limits.MaxInputBytes {
 		return result, sat.ErrLimit
 	}
-	result.FormulaSHA256, err = toolrun.Save(dir, "input.cnf", formula.Bytes())
+	result.FormulaDigest, err = toolrun.Save(dir, "input.cnf", formula.Bytes())
 	if err != nil {
 		return result, err
 	}
@@ -134,7 +143,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		}
 		result.Model.Checked = true
 		result.Model.Method = "total-assignment/every-input-clause/v0"
-		result.Model.TargetSHA256 = result.InputSHA256
+		result.Model.TargetDigest = result.InputDigest
 	case process.ExitCode == 20 && exactLine(stdout, "s UNSATISFIABLE") && !exactLine(stdout, "s SATISFIABLE") && !exactLine(stdout, "s UNKNOWN"):
 		result.Status = sat.UNSAT
 		proof, statErr := os.Lstat(filepath.Join(dir, "proof.drat"))
@@ -161,9 +170,9 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		}
 		result.Proof.Checked = true
 		result.Proof.Method = "drat-trim/exit-zero-exact-verified"
-		result.Proof.TargetSHA256 = result.FormulaSHA256
+		result.Proof.TargetDigest = result.FormulaDigest
 	case process.ExitCode == 0 && exactLine(stdout, "s UNKNOWN") && !exactLine(stdout, "s SATISFIABLE") && !exactLine(stdout, "s UNSATISFIABLE"):
-		// UNKNOWN is a valid answer; consumer acceptance rejects it.
+		return result, errors.Join(sat.ErrInconclusive, ctx.Err())
 	default:
 		return result, sat.ErrProtocol
 	}

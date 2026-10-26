@@ -1,36 +1,34 @@
 package cadical
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
 // Identity binds tool binaries and effective limits, excluding storage paths.
 // It returns an error for an uninitialized runner or failed serialization.
-func (r *Runner) Identity() (string, error) {
+func (r *Runner) Identity() (digest.Digest, error) {
 	if r == nil || r.root == "" {
 		return "", fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
 	}
 	raw, err := json.Marshal(struct {
-		Solver, Checker string
+		Solver, Checker digest.Digest
 		Limits          sat.Limits
 		ProofLimit      int64
 	}{
-		Solver: r.config.SolverSHA256, Checker: r.config.CheckerSHA256,
+		Solver: r.config.SolverDigest, Checker: r.config.CheckerDigest,
 		Limits: r.config.Limits, ProofLimit: r.config.MaxProofBytes,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encoding runner identity: %w", err)
 	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return digest.Sum(raw), nil
 }
 
 // ReadArtifact reads retained bytes and verifies size and digest. Close errors
@@ -59,8 +57,7 @@ func (r *Runner) ReadArtifact(a sat.Artifact) (data []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(data)
-	if int64(len(data)) != a.Bytes || hex.EncodeToString(sum[:]) != a.SHA256 {
+	if int64(len(data)) != a.Bytes || digest.Sum(data) != a.Digest {
 		return nil, fmt.Errorf("%w: artifact digest", sat.ErrValidation)
 	}
 	return data, nil
