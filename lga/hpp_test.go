@@ -31,10 +31,10 @@ var headOnToNorth = [2][4]bool{{East: true, West: true}, {North: true}}
 // headOnToNorthEast keeps two particles but gains momentum in x and y.
 var headOnToNorthEast = [2][4]bool{{East: true, West: true}, {East: true, North: true}}
 
-func value(q automaton.Quantity, s automaton.State) int {
+func value(q automaton.Quantity, s automaton.State, bits int) int {
 	v := 0
 	for _, t := range q {
-		if s[t.Bit.Cell*4+t.Bit.Index] {
+		if s[t.Bit.Cell*bits+t.Bit.Index] {
 			v += t.Weight
 		}
 	}
@@ -190,7 +190,7 @@ func TestQuantitiesConservedExhaustively(t *testing.T) {
 				t.Fatal(err)
 			}
 			for name, q := range quantities {
-				if value(q, states[0]) == value(q, states[1]) {
+				if value(q, states[0], 4) == value(q, states[1], 4) {
 					continue
 				}
 				if _, mutated := sys.(mutatedHPP); !mutated {
@@ -279,5 +279,46 @@ func TestDefaultBudgetSteps(t *testing.T) {
 	}
 	if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 13}, automaton.Options{}); !errors.Is(err, sat.ErrLimit) {
 		t.Fatalf("got %v, want limit", err)
+	}
+}
+
+// TestHPPWalls checks every state of a 2×1 lattice with one wall: mass is
+// conserved, a particle is reflected, and some state changes momentum.
+func TestHPPWalls(t *testing.T) {
+	h := HPP{Width: 2, Height: 1, Walls: []bool{false, true}}
+	if err := h.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	momentumChanged := false
+	for mask := range 1 << 8 {
+		start := make(automaton.State, 8)
+		for i := range start {
+			start[i] = mask>>i&1 == 1
+		}
+		states, err := automaton.Simulate(h, start, 1, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if value(h.Mass(), states[0], 4) != value(h.Mass(), states[1], 4) {
+			t.Fatalf("wall changes mass from %08b", mask)
+		}
+		if value(h.MomentumX(), states[0], 4) != value(h.MomentumX(), states[1], 4) {
+			momentumChanged = true
+		}
+	}
+	if !momentumChanged {
+		t.Fatal("bounce-back never changed momentum")
+	}
+	start := make(automaton.State, 8)
+	start[0*4+East] = true
+	states, err := automaton.Simulate(h, start, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !states[1][1*4+West] {
+		t.Fatal("wall did not reflect an east-moving particle")
+	}
+	if err := (HPP{Width: 2, Height: 1, Walls: []bool{true}}).Validate(); !errors.Is(err, ErrInput) {
+		t.Fatalf("walls length: got %v", err)
 	}
 }
