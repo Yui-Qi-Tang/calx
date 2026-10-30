@@ -44,7 +44,7 @@
 <text x="74" y="613" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >Model + Query</text>
 <text x="74" y="645" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Fields and actions</text>
 <text x="74" y="672" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Start / Goal / Horizon</text>
-<text x="74" y="699" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Profile / Blocked paths</text>
+<text x="74" y="699" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Blocked paths</text>
 <rect x="350" y="575" width="330" height="180" rx="14" fill="white" stroke="#e2e8f0" />
 <path d="M368 593 V737" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
 <text x="384" y="613" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >finite.Compile</text>
@@ -74,6 +74,6 @@
 <path d="M920 665 H960" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
 <path d="M1230 665 H1270" fill="none" stroke="#0f766e" stroke-width="2.5"  marker-end="url(#teal)"/>
 <rect x="40" y="805" width="1520" height="75" rx="14" fill="#eff6ff" stroke="#dbeafe" />
-<text x="64" y="835" font-size="18" fill="#1e40af" font-weight="400" text-anchor="start" >Consumers can also supply CNF directly. AHE need not pass through a matrix; Lab may retain its own encoder.</text>
+<text x="64" y="835" font-size="18" fill="#1e40af" font-weight="400" text-anchor="start" >Consumers can also supply CNF directly: without a matrix, or from their own encoder.</text>
 <text x="64" y="862" font-size="18" fill="#1e40af" font-weight="400" text-anchor="start" >For finite SAT traces, retain the original Encoding and use its Decode method after successful checks.</text>
 </g></svg>

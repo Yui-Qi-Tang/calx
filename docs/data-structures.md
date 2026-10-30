@@ -63,9 +63,13 @@ digest does not establish source truth, model validity or proof verification.
 
 Source: [incidence/incidence.go](../incidence/incidence.go).
 
+Incidence types carry no JSON tags. The "CLI JSON key" columns below name the
+keys of the `project` and `reconstruct` input and output, which the CLI
+converts to and from these types.
+
 ### `incidence.Graph` and `incidence.Edge`
 
-| Go field | JSON key | Go type | Meaning |
+| Go field | CLI JSON key | Go type | Meaning |
 | --- | --- | --- | --- |
 | `Graph.NodeIDs` | `node_ids` | `[]string` | All included nodes, including isolated nodes |
 | `Graph.Edges` | `edges` | `[]Edge` | Independently identified directed edges |
@@ -82,7 +86,7 @@ These types have no payload, snapshot or provenance fields.
 
 Let N be the node count and E the edge count.
 
-| Go field | JSON key | Go type / shape | Meaning |
+| Go field | CLI JSON key | Go type / shape | Meaning |
 | --- | --- | --- | --- |
 | `NodeIDs` | `node_ids` | `[]string`, N | Row index → node ID |
 | `EdgeIDs` | `edge_ids` | `[]string`, E | Column index → edge ID |
@@ -107,12 +111,18 @@ an integer 0 or 1, not a floating-point weight or a probability.
 Sources: [model.go](../finite/model.go), [matrix.go](../finite/matrix.go),
 [cnf.go](../finite/cnf.go), [variable.go](../finite/variable.go).
 
+Finite types carry no JSON tags. The "CLI JSON key" columns below name the keys
+of the CLI request and response, which the CLI converts to and from these
+types. The digest uses the same keys through private types, and its query
+also records `profile`, always `finite.Profile`, as the CLI request does; the variable metadata is hand-encoded with the
+same keys as `encode.variables`.
+
 ### `finite.State`, `finite.Action`, `finite.Model`
 
 `State` is `map[string]string`: field name → categorical value. A complete state
 assigns every model field. Guards, goals and forbidden patterns can be partial.
 
-| Go field | JSON key | Go type | Meaning |
+| Go field | CLI JSON key | Go type | Meaning |
 | --- | --- | --- | --- |
 | `Model.Fields` | `fields` | `map[string][]string` | Field name → allowed categorical values |
 | `Model.Forbidden` | `forbidden` | `[]State` | Any matching pattern excludes a complete state |
@@ -126,17 +136,26 @@ Effect and Frame exactly partition the model fields. Omitted guards impose no
 condition; effects cannot be empty. String `"1"` is a category, not integer 1.
 The profile does not coerce JSON booleans, numbers or copy expressions to strings.
 
-### `finite.Query` and `finite.Options`
+### `finite.Query` and the encoding budget
 
-| Go field | JSON key | Go type | Meaning |
+| Go field | CLI JSON key | Go type | Meaning |
 | --- | --- | --- | --- |
-| `Query.Profile` | `profile` | `string` | Must be `categorical-simple-first-hit/v1` |
 | `Query.Start` | `start` | `State` | Complete domain-valid initial state |
 | `Query.Goal` | `goal` | `State` | Nonempty target pattern |
 | `Query.Horizon` | `horizon` | `int` | Exact number of actions, including zero |
 | `Query.Blocked` | `blocked` | `[][]string` | Complete action sequences to exclude |
-| `Options.MaxVariables` | `max_variables` | `int` | Encoding budget; zero selects 100,000 |
-| `Options.MaxClauses` | `max_clauses` | `int` | Encoding budget; zero selects 1,000,000 |
+
+`finite.Compile` takes budget options: `WithMaxVariables(n)` (default 100,000)
+and `WithMaxClauses(n)` (default 1,000,000). Each `n` must be at least 1;
+otherwise Compile returns `finite.ErrInput`. In a CLI request the budget is the
+`options` object with `max_variables` and `max_clauses`; a zero or omitted
+field keeps the default, and a negative one is an input error.
+
+`finite.Profile` (`categorical-simple-first-hit/v1`) names the semantics that
+Compile encodes. Go callers do not pass it; every digest records it, so a later
+change of semantics also changes the digest. A CLI query must still carry
+`profile` with exactly this value, which the CLI checks before compiling;
+any other value returns UNSUPPORTED.
 
 The CLI request is `{model, query, options?}`. Its decoder separately tracks
 Horizon presence: omitting it is an error, while explicitly setting 0 requests
@@ -145,17 +164,18 @@ exactly Horizon actions. `[[]]` blocks the empty sequence when Horizon is 0.
 
 ### `finite.Coordinate` and `finite.Matrix`
 
-A Coordinate has `Field string` (`field`) and `Value string` (`value`).
+A Coordinate has `Field string` and `Value string`. The CLI does not output
+matrices; `examples/matrix` defines its own JSON form for them.
 For F fields, K field/value coordinates and A actions:
 
-| Go field | JSON key | Go type / shape | Meaning |
-| --- | --- | --- | --- |
-| `Fields` | `fields` | `[]string`, F | Frame-column index → field |
-| `Coordinates` | `coordinates` | `[]Coordinate`, K | Guard/effect-column index → field/value pair |
-| `ActionIDs` | `action_ids` | `[]string`, A | Row index → action |
-| `Guard` | `guard` | `[][]int`, A × K | 1 means this category is required |
-| `Effect` | `effect` | `[][]int`, A × K | 1 means this category is assigned |
-| `Frame` | `frame` | `[][]int`, A × F | 1 means this field is preserved |
+| Go field | Go type / shape | Meaning |
+| --- | --- | --- |
+| `Fields` | `[]string`, F | Frame-column index → field |
+| `Coordinates` | `[]Coordinate`, K | Guard/effect-column index → field/value pair |
+| `ActionIDs` | `[]string`, A | Row index → action |
+| `Guard` | `[][]int`, A × K | 1 means this category is required |
+| `Effect` | `[][]int`, A × K | 1 means this category is assigned |
+| `Frame` | `[][]int`, A × F | 1 means this field is preserved |
 
 Project sorts fields, values within each field, and action IDs. Matrix.Model
 also needs the explicit forbidden patterns; they are not encoded in these three
@@ -199,7 +219,7 @@ Encoding has private fields and is created by Compile. Its public accessors are:
 
 Each finite Variable has:
 
-| Go field | JSON key | Type | Meaning |
+| Go field | CLI JSON key | Type | Meaning |
 | --- | --- | --- | --- |
 | `ID` | `id` | `int` | One-based DIMACS variable ID |
 | `Kind` | `kind` | `VariableKind` | StateVariable, ActionVariable or DifferenceVariable |
@@ -218,7 +238,9 @@ A `different` helper witnesses inequality when true; false alone does not assert
 equality. Helpers do not define path identity. The mapping is also serialized as
 a JSON string under `sat.Variable.Metadata["finite_variable"]`.
 
-Trace contains `States []State` (`states`) and `Actions []string` (`actions`).
+Trace contains `States []State` and `Actions []string`; the CLI writes them as
+`states` and `actions`.
+`Trace.IsZero()` reports a zero Trace; a decoded trace always has a state.
 A trace with H actions contains H+1 complete states. It is a model witness;
 original-rule replay and real execution remain separate checks.
 
@@ -231,14 +253,14 @@ the other types are plain values.
 | --- | --- | --- |
 | `System` | `Cells() int`, `Bits() int`, `Inputs(cell) []Bit`, `Next(cell, in, out []bool)` | Caller-owned automaton; Calx sees only indices and the rule |
 | `Chooser` | `Choices(cell) int` | Optional; choice bits follow the inputs in `in` |
-| `Bit` | `Cell`, `Index int` (`cell`, `index`) | One state bit of one cell |
+| `Bit` | `Cell`, `Index int` | One state bit of one cell |
 | `State` | `[]bool` | `Cells()*Bits()` values; bit (c, i) at index `c*Bits()+i` |
 | `Pattern` | `map[Bit]bool` | Partial state constraint |
-| `Query` | `Steps int`, `Start`, `Goal Pattern`, `Forbidden []Pattern`, `Violates Quantity` | One exact-length run; nonempty `Violates` requires the quantity to change |
-| `Term` | `Bit Bit` (`bit`), `Weight int` (`weight`) | One signed bit, weight +1 or -1 |
+| `Query` | `Steps int`, `Start`, `Goal Pattern`, `Forbidden []Pattern`, `Violates Quantity` | One exact-length run; nonempty `Violates` requires the quantity to change at some step |
+| `Term` | `Bit Bit`, `Weight int` | One signed bit, weight +1 or -1 |
 | `Quantity` | `[]Term` | Sum of signed bits, such as mass or one momentum component |
-| `Options` | `MaxVariables`, `MaxClauses`, `MaxLiterals int` | Encoding budget; zero uses `sat.Limits` defaults |
-| `Trajectory` | `States []State` (`states`), `Choices [][]bool` (`choices`) | Steps+1 states; per step, every cell's choice bits in cell order |
+| `Option` | `WithMaxVariables`, `WithMaxClauses`, `WithMaxLiterals` (each `int` ≥ 1) | Encoding budget for `Compile`; omitted options keep the `sat.Limits` defaults |
+| `Trajectory` | `States []State`, `Choices [][]bool` | Steps+1 states; per step, every cell's choice bits in cell order; `IsZero()` reports the zero value |
 
 Encoding has private fields and is created by `Compile`:
 
@@ -252,9 +274,10 @@ Encoding has private fields and is created by `Compile`:
 
 Variable IDs are contiguous: state bit (t, c, i) is
 `1 + t*Cells*Bits + c*Bits + i` for t = 0..Steps, then choice bit j of cell c
-at step t follows all state bits in step-major, cell-major order. Totalizer and
-disagreement variables for `Violates` follow the choice bits. Decode ignores
-them. Variables carry no metadata.
+at step t follows all state bits in step-major, cell-major order. For each
+step, `Violates` then adds two totalizers, one "changed" variable and the
+disagreement variables, and one final clause requires some changed variable to
+be true. Decode ignores them. Variables carry no metadata.
 
 ## Lattice gases (v0.1)
 
@@ -290,6 +313,10 @@ Both `Run` methods return only the final state.
 Sources: [sat/cnf.go](../sat/cnf.go), [sat/result.go](../sat/result.go),
 [sat/limits.go](../sat/limits.go), [cadical/runner.go](../sat/cadical/runner.go).
 
+These types carry no JSON tags. The "JSON key" columns below name the keys of
+the CLI `solve` input and output; the runner's retained `input.json` and
+`outcome.json` use the same keys through private types.
+
 ### `sat.CNF` and `sat.Variable`
 
 | Go field | JSON key | Go type | Meaning |
@@ -314,7 +341,6 @@ exactly once, including false values and variables absent from all clauses.
 | Go field | JSON key | Go type | Meaning |
 | --- | --- | --- | --- |
 | `Status` | `status` | `sat.Status` | Backend answer: SAT, UNSAT or UNKNOWN |
-| `Profile` | `profile` | `string` | Current runner formula profile: `cnf/v0` |
 | `InputDigest` | `input_digest` | `digest.Digest` | Exact generated input.json identity |
 | `FormulaDigest` | `formula_digest` | `digest.Digest` | Exact generated input.cnf identity |
 | `SolverDigest` | `solver_digest` | `digest.Digest` | Pinned solver executable identity |
@@ -324,7 +350,12 @@ exactly once, including false values and variables absent from all clauses.
 | `Artifacts` | `artifacts` | `[]Artifact` | Retained per-query file identities |
 | `cadical.Result.Assignment` | `assignment` | `map[int]bool` | Decoded total SAT assignment, when available |
 
-`cadical.Result` embeds `sat.Result`; the JSON fields appear at the same level.
+`cadical.Result` embeds `sat.Result`; in CLI output `assignment` appears at the
+same level as the other result fields.
+`sat.Result.IsZero()` and `sat.Validation.IsZero()` report the zero value.
+`cadical.Result.IsZero()` also requires no assignment. A runner never returns
+a zero Result, even on error, so IsZero separates an unset Result from an
+UNKNOWN answer.
 A result can retain SAT/UNSAT even when Solve returns an error. The error is a
 separate Go return value, not a field in sat.Result.
 
@@ -383,11 +414,11 @@ implicitly accepted as request schemas.
 
 | Command | Input | Successful `data` value |
 | --- | --- | --- |
-| `project` | `incidence.Graph` | `incidence.Projection` |
-| `reconstruct` | `incidence.Projection` | `incidence.Graph` |
+| `project` | `{node_ids,edges}` | `{node_ids,edge_ids,source,target,relation_masks}` |
+| `reconstruct` | `{node_ids,edge_ids,source,target,relation_masks}` | `{node_ids,edges}` |
 | `encode` | `{model,query,options?}` | `{query_digest,cnf,variables,dimacs}` |
-| `decode` | `{request:{model,query,options?},assignment}` | `finite.Trace` |
-| `solve` | `sat.CNF`, or DIMACS with `--format dimacs` | `{result}` |
+| `decode` | `{request:{model,query,options?},assignment}` | `{states,actions}` |
+| `solve` | `{variables,clauses,origins?}`, or DIMACS with `--format dimacs` | `{result}` |
 | `solve-finite` | `{model,query,options?}` | `{result,query_digest,trace?}` |
 | `pin-tools` | none; flags only | the written `calx-tools/v1` manifest |
 
@@ -401,18 +432,26 @@ Every response is wrapped in this envelope:
 | --- | --- | --- |
 | `schema_version` | string | `calx-cli/v2` |
 | `outcome` | string | OK or ERROR for this command |
-| `input_digest` | string (Go: `digest.Digest`) | Exact original transport bytes, before JSON/DIMACS decoding; omitted by `pin-tools`, which reads no input |
+| `input_digest` | string (Go: `digest.Digest`) | Exact original transport bytes, before JSON/DIMACS decoding; omitted by `pin-tools`, which reads no input. If the input cannot be read it is the digest of the bytes read, which for a missing `--in` file is the empty input's digest, and for an oversized input its first 16 MiB + 1 bytes |
 | `data` | object, optional | Command output or retained diagnostic result |
 | `error` | object, optional | `{code:string,message:string}` |
 
 Error codes are CANCELED, TIMEOUT, LIMIT, UNSUPPORTED, INCONCLUSIVE, GUARANTEE,
 PROTOCOL, VALIDATION, or INPUT_OR_EXECUTION. Go Solve errors are carried here separately
 from `data.result.status`. Exit 0 means the command met its checks; exit 1 is
-failure; exit 2 is flag/usage failure, which prints usage/error text to stderr
-rather than a JSON envelope. Project/encode OK does not mean SAT was run.
+failure; exit 2 is flag/usage failure, including an unreadable `--tools`
+manifest, which prints usage/error text to stderr rather than a JSON envelope.
+`--help` prints usage to stderr and exits 0. Project/encode OK does not mean SAT was run.
 An explicit UNKNOWN produces exit 1, outcome ERROR and code INCONCLUSIVE while
 retaining `data.result.status: UNKNOWN` and the diagnostic artifact inventory.
 Joined cancellation/deadline errors produce CANCELED/TIMEOUT instead.
+When `incidence.Project`, `Projection.Graph` or `Encoding.Decode` fails,
+`project`, `reconstruct` or `decode` still return `data` with an empty value of
+the usual shape: `[]` for every array and `{}` for `relation_masks`, never
+null. Earlier failures (malformed JSON, a missing required field, or a decode
+request that does not compile) omit `data`. `decode` has no required fields: a
+missing `assignment` is an empty one, which `Encoding.Decode` rejects as not
+total, so it returns the empty trace.
 
 CLI JSON uses exact field names and rejects duplicate/unknown fields, null and
 trailing values. Native Go nil slices/maps may be usable zero values; direct

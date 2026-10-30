@@ -55,8 +55,9 @@
 <text x="599" y="687" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Require a regular, bounded proof</text>
 <text x="599" y="714" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Run DRAT-trim on input.cnf + proof</text>
 <text x="599" y="741" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Require exit 0 + exact s VERIFIED</text>
-<text x="599" y="768" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Proof.Checked = true</text>
-<text x="599" y="795" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >TargetDigest = FormulaDigest</text>
+<text x="599" y="768" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >(exit 1 only if input has an empty clause)</text>
+<text x="599" y="795" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >Proof.Checked = true</text>
+<text x="599" y="822" font-size="18" fill="#334155" font-weight="400" text-anchor="start" >TargetDigest = FormulaDigest</text>
 <rect x="1090" y="590" width="470" height="285" rx="14" fill="white" stroke="#e2e8f0" />
 <path d="M1108 608 V857" stroke="#b45309" stroke-width="4" stroke-linecap="round"/>
 <text x="1124" y="628" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start" >UNKNOWN branch (exit 0)</text>

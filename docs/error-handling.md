@@ -50,8 +50,9 @@ and unrelated populated fields are rejected.
 
 Callers choose action names when declaring a Model, subject to its uniqueness,
 UTF-8, size and rule checks. They cannot invent a new action in a Variable map:
-an action variable must refer to an existing declared action. The `omitempty`
-JSON tags omit only fields that do not apply to the validated role.
+an action variable must refer to an existing declared action. In CLI output
+and variable metadata, fields that do not apply to the validated role are
+omitted.
 
 ## Error-returning accessors
 
@@ -81,7 +82,7 @@ unit tests: it detects discarded errors, not the correctness of every branch.
 Application/library code does not depend on errcheck; it is a development tool.
 
 `digest.Parse` and `Digest.Validate` return `digest.ErrInvalid` for unsupported
-representations. `digest.Read` returns no value after a read failure and preserves
-the underlying I/O error. `Digest.Set` leaves the receiver unchanged on failure.
+representations. `digest.Read` returns no digest after a read failure, only the
+byte count read so far, and preserves the underlying I/O error. `Digest.Set` leaves the receiver unchanged on failure.
 The CLI parses digest flags before reading input; the runner revalidates native
 Config values, and Require rejects malformed check-target identifiers.

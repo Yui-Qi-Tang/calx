@@ -1,8 +1,9 @@
 # Internal execution: graph → matrix → logic resolver → result
 
-These diagrams follow the v0 finite route. The v0.1 automaton route is described
-in the [v0.1 design](v0.1-design.md#automaton). Start with the overview,
-then follow the matrix compiler, solver/checker and result-decoding paths.
+Sections 1–4 follow the v0 finite route. Section 5 follows the v0.1 automaton
+and lattice-gas route, which reuses the same solver and checks. Start with the
+overview, then follow the matrix compiler, solver/checker and result-decoding
+paths.
 The worked computation is the README example: one action changes `state=off`
 to `state=on`, with an exact horizon of one.
 
@@ -12,6 +13,7 @@ to `state=on`, with an exact horizon of one.
 | [2. Matrix to CNF](#2-operation-matrix-to-cnf) | Validation, time-indexed variables and the actual emitted clauses |
 | [3. Resolver internals](#3-logic-resolver-internals) | Pinned tools, execution, SAT/UNSAT/UNKNOWN branches and retained artifacts |
 | [4. Result to trace](#4-result-to-trace) | Error handling, answer-specific guarantees and decoding with the original Encoding |
+| [5. Automata and lattice gases](#5-automata-and-lattice-gases) | `automaton.System` to CNF, conserved-quantity queries, replay, and forward simulation with `lga` |
 
 ## 1. Complete flow
 
@@ -48,8 +50,8 @@ The two matrix contracts have different axes:
 ### Validation and allocation
 
 Compile first checks the context, options, model and query. This catches invalid
-field/value references, incomplete effect/frame partitions, unsupported profiles
-and invalid query bounds before solving. Project establishes stable field/value
+field/value references, incomplete effect/frame partitions and invalid query
+bounds before solving. Project establishes stable field/value
 coordinates and action rows. Each allocation and clause-building step returns
 errors directly. The compiler does not hide failures in a sentinel ID or delayed
 error field. The encoder estimates variable/clause budgets before allocating
@@ -147,7 +149,10 @@ The recognized backend responses are:
 | UNKNOWN | Exit 0 and exact `s UNKNOWN` | Return `sat.ErrInconclusive`; retain UNKNOWN and diagnostic artifacts |
 
 The solver output must not contain a contradictory status line. The UNSAT
-checker must exit zero, emit exact `s VERIFIED`, and not emit `s NOT VERIFIED`.
+checker must emit exact `s VERIFIED`, must not emit `s NOT VERIFIED`, and must
+exit zero. The one exception is a formula that already contains an empty
+clause: DRAT-trim then reports `c trivial UNSAT` and exits 1, which is accepted
+with the method `drat-trim/trivial-unsat-empty-clause`.
 The proof-size limit is checked after solver execution; it is not a disk quota.
 
 A check failure, process failure, cancellation, deadline or resource failure
@@ -239,6 +244,79 @@ SAT trace. Complete fields are in [data structures](data-structures.md).
 **Source:** [Result.Require](../sat/result.go), [Encoding.Decode](../finite/cnf.go),
 [standalone example](../examples/solve/main.go), [CLI envelope](../internal/cli/cli.go).
 
+## 5. Automata and lattice gases
+
+The v0.1 route starts from a caller-supplied `automaton.System` instead of a
+finite model. `lga.HPP` and `lga.FHP` are such systems, but any type that
+implements the four methods works. The solver stage (section 3) and the
+answer-specific checks (section 4) are the same as for the finite route.
+
+```mermaid
+flowchart TD
+    Sys["automaton.System<br/>(lga.HPP, lga.FHP or caller type)"] --> Shape["readShape: cells, bits,<br/>distinct in-range inputs, fan-in ≤ 12"]
+    Query["automaton.Query<br/>Steps, Start, Goal, Forbidden, Violates"] --> Check["Query.validate"]
+    Shape --> Check --> Budget["encodingSize vs budget<br/>(variables, clauses, literals)"]
+    Budget --> Tables["ruleTable: Next once per cell and input row"]
+    Tables --> Encode["encode: transition clauses, Start/Goal units,<br/>Forbidden blocks, Violates totalizers"]
+    Encode --> Enc["Encoding: sat.CNF + layout + Digest"]
+    Enc --> CNF["CNF copy"] --> Solve["cadical.Runner.Solve<br/>(section 3)"]
+    Solve --> Res["Result: status + checked model or proof"]
+    Res -->|SAT assignment| Decode["Encoding.Decode"] --> Traj["Trajectory: Steps+1 states,<br/>choice bits per step"]
+    Traj --> Replay["automaton.Replay: re-run Next step by step"]
+    Sys --> Sim["automaton.Simulate, or lga Run (bit-packed)"] --> States["Forward states"]
+    States --> Flow["lga Density / Velocity"]
+```
+
+**Validation and budget.** `Compile` checks the context and budget options, reads each
+cell's inputs and choice count once, and validates the query patterns and
+`Violates` terms. It then predicts the exact variable, clause and literal
+counts and fails with `sat.ErrLimit` before calling `Next` if any exceeds the
+budget.
+
+**Rule tables and clauses.** For each cell, `Next` is evaluated once for every
+assignment of its inputs and choice bits, and the table is reused for every
+step. Each (step, cell, output bit, table row) yields one clause: if the inputs
+equal that row, the output bit at the next time equals the table value. Start
+and Goal become unit clauses at time 0 and time `Steps`. Each Forbidden pattern
+becomes one blocking clause per time.
+
+**Variable layout.** State bit (t, c, i) is variable
+`1 + t*Cells*Bits + c*Bits + i` for t = 0..Steps. Choice bits follow, step by
+step and cell by cell. Totalizer and disagreement variables for `Violates` come
+last; `Decode` ignores them.
+
+**Conserved quantities.** A `Violates` quantity Q = P − N compares, for each
+step t, `P(t−1) + N(t)` with `P(t) + N(t−1)` through two exact totalizer
+counters. Each comparison has a variable that, when true, requires the counts
+to differ, and one clause requires some step's variable to be true. UNSAT
+therefore proves Q has the same value at every time of every run of this
+system, including runs that would change it and change it back.
+
+Worked sizes, matching `Compile`:
+
+| System and query | State and choice variables | Auxiliary variables | Clauses |
+| --- | ---: | ---: | ---: |
+| Rule 90, 4 cells, 2 steps, Start and Goal (the package example) | 12 | 0 | 64 transition + 8 units = 72 |
+| HPP 2×2, 3 steps, `Violates: Mass()` (16 terms) | 64 | 435 | 768 transition + 3 × 769 counter + 1 = 3,076 |
+
+**Result to trajectory.** After a checked SAT answer, `Decode` checks the total
+assignment against the owned CNF and returns `Steps+1` states plus each step's
+choice bits. `Replay` re-evaluates `Next` on that trajectory. It shares the rule
+source, so it checks the encoding, not whether the rule models anything
+physical. An UNSAT answer has no trajectory, and its claim is limited to the
+declared system, step count and patterns.
+
+**Forward simulation.** `automaton.Simulate` runs any System cell by cell.
+`lga.HPP.Run` and `lga.FHP.Run` produce the same final state with a bit-packed
+path: one plane per direction, 64 cells per word, streaming by
+row shifts and collisions by bitwise logic. `Density` and `Velocity` average
+the resulting states over blocks.
+
+**Source:** [automaton.Compile](../automaton/compile.go),
+[totalizer and Violates](../automaton/quantity.go),
+[Simulate and Replay](../automaton/automaton.go), [lga HPP](../lga/hpp.go),
+[lga FHP](../lga/fhp.go), [bit-packed Run](../lga/packed.go).
+
 ## Reproduce the non-solver stages
 
 From the repository root:
@@ -253,3 +331,6 @@ The first prints the graph projection. The second prints the complete CNF above.
 The third also includes the finite variable map and model/query digest. See the
 [README solve example](../README.md#4-satcadical-solve-check-and-decode) for checked SAT and
 UNSAT executions with explicitly pinned local tools.
+
+For the automaton route, `go run ./examples/lga` runs a forward simulation and
+`go test -run ExampleCompile ./automaton` checks the 72-clause example above.

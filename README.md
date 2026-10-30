@@ -26,7 +26,10 @@ independently.
 | [Execution flow](docs/execution-flow.md) | Diagrams of the finite route from model through CNF, solver checks and decoding |
 | [Graph to matrix](docs/graph-to-matrix.md) | A visual walkthrough of incidence projection |
 | [v0.1 design](docs/v0.1-design.md) | The automaton and lattice-gas design, phases and measured limits |
-| [Adoption](docs/adoption.md) | What it takes for AHE and Pouch repositories to import Calx |
+| [SAT primer](docs/sat-primer.md) | A picture-based introduction to CNF, SAT/UNSAT answers and how Calx checks them |
+| [Finite model primer](docs/finite-primer.md) | A picture-based introduction to finite models, queries and their CNF encoding |
+| [Automata primer](docs/automata-primer.md) | A picture-based introduction to automata, their CNF encoding and Garden of Eden states |
+| [Lattice gas primer](docs/lga-primer.md) | A picture-based introduction to HPP and FHP lattice gases and the questions a solver can answer about them |
 | [Consumer conformance](docs/compatibility.md) | The bounded compatibility check against consumer sources |
 | [Validation log](docs/validation.md) | Dated verification records and retained evidence |
 
@@ -75,11 +78,40 @@ func main() {
 	// Deterministic sorts map keys so the output is reproducible.
 	output := jsontext.NewEncoder(os.Stdout, jsontext.WithIndent("  "))
 	if err := json.MarshalEncode(output, struct {
-		Projection    incidence.Projection `json:"projection"`
-		Reconstructed incidence.Graph      `json:"reconstructed"`
-	}{Projection: projection, Reconstructed: reconstructed}, json.Deterministic(true)); err != nil {
+		Projection    projectionJSON `json:"projection"`
+		Reconstructed graphJSON      `json:"reconstructed"`
+	}{Projection: projectionJSON(projection), Reconstructed: toGraphJSON(reconstructed)}, json.Deterministic(true)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// incidence types carry no JSON tags, so the example defines its own output.
+type projectionJSON struct {
+	NodeIDs       []string         `json:"node_ids"`
+	EdgeIDs       []string         `json:"edge_ids"`
+	Source        [][]int          `json:"source"`
+	Target        [][]int          `json:"target"`
+	RelationMasks map[string][]int `json:"relation_masks"`
+}
+
+type graphJSON struct {
+	NodeIDs []string   `json:"node_ids"`
+	Edges   []edgeJSON `json:"edges"`
+}
+
+type edgeJSON struct {
+	ID       string `json:"id"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Relation string `json:"relation"`
+}
+
+func toGraphJSON(g incidence.Graph) graphJSON {
+	edges := make([]edgeJSON, len(g.Edges))
+	for i, e := range g.Edges {
+		edges[i] = edgeJSON(e)
+	}
+	return graphJSON{NodeIDs: g.NodeIDs, Edges: edges}
 }
 ```
 
@@ -111,7 +143,8 @@ First inspect the operation matrices. Here `enable` changes `state=off` to
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"log"
 	"os"
 
@@ -141,14 +174,58 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	output := json.NewEncoder(os.Stdout)
-	output.SetIndent("", "  ")
-	if err := output.Encode(struct {
-		Matrix        finite.Matrix `json:"matrix"`
-		Reconstructed finite.Model  `json:"reconstructed"`
-	}{Matrix: matrix, Reconstructed: reconstructed}); err != nil {
+	// Deterministic sorts map keys so the output is reproducible.
+	output := jsontext.NewEncoder(os.Stdout, jsontext.WithIndent("  "))
+	if err := json.MarshalEncode(output, struct {
+		Matrix        matrixJSON `json:"matrix"`
+		Reconstructed modelJSON  `json:"reconstructed"`
+	}{Matrix: toMatrixJSON(matrix), Reconstructed: toModelJSON(reconstructed)}, json.Deterministic(true)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// The example chooses its own JSON names; finite types have no JSON tags.
+type matrixJSON struct {
+	Fields      []string         `json:"fields"`
+	Coordinates []coordinateJSON `json:"coordinates"`
+	ActionIDs   []string         `json:"action_ids"`
+	Guard       [][]int          `json:"guard"`
+	Effect      [][]int          `json:"effect"`
+	Frame       [][]int          `json:"frame"`
+}
+
+type coordinateJSON struct {
+	Field string `json:"field"`
+	Value string `json:"value"`
+}
+
+type modelJSON struct {
+	Fields    map[string][]string `json:"fields"`
+	Forbidden []finite.State      `json:"forbidden"`
+	Actions   []actionJSON        `json:"actions"`
+}
+
+type actionJSON struct {
+	ID     string       `json:"id"`
+	Guard  finite.State `json:"guard"`
+	Effect finite.State `json:"effect"`
+	Frame  []string     `json:"frame"`
+}
+
+func toMatrixJSON(m finite.Matrix) matrixJSON {
+	coordinates := make([]coordinateJSON, len(m.Coordinates))
+	for i, c := range m.Coordinates {
+		coordinates[i] = coordinateJSON(c)
+	}
+	return matrixJSON{Fields: m.Fields, Coordinates: coordinates, ActionIDs: m.ActionIDs, Guard: m.Guard, Effect: m.Effect, Frame: m.Frame}
+}
+
+func toModelJSON(m finite.Model) modelJSON {
+	actions := make([]actionJSON, len(m.Actions))
+	for i, a := range m.Actions {
+		actions[i] = actionJSON(a)
+	}
+	return modelJSON{Fields: m.Fields, Forbidden: m.Forbidden, Actions: actions}
 }
 ```
 
@@ -196,13 +273,12 @@ func main() {
 		}},
 	}
 	query := finite.Query{
-		Profile: finite.Profile,
 		Start:   finite.State{"state": "off"},
 		Goal:    finite.State{"state": "on"},
 		Horizon: 1, // Exactly one action.
 	}
 
-	encoding, err := finite.Compile(context.Background(), model, query, finite.Options{})
+	encoding, err := finite.Compile(context.Background(), model, query)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -237,7 +313,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"log"
 	"os"
 
@@ -274,13 +351,13 @@ func main() {
 	if err := parsed.CheckAssignment(assignment); err != nil {
 		log.Fatal(err)
 	}
-	output := json.NewEncoder(os.Stdout)
-	output.SetIndent("", "  ")
-	if err := output.Encode(struct {
+	// Deterministic sorts map keys so the output is reproducible.
+	output := jsontext.NewEncoder(os.Stdout, jsontext.WithIndent("  "))
+	if err := json.MarshalEncode(output, struct {
 		DIMACS            string       `json:"dimacs"`
 		Assignment        map[int]bool `json:"assignment"`
 		AssignmentChecked bool         `json:"assignment_checked"`
-	}{DIMACS: dimacs.String(), Assignment: assignment, AssignmentChecked: true}); err != nil {
+	}{DIMACS: dimacs.String(), Assignment: assignment, AssignmentChecked: true}, json.Deterministic(true)); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -323,7 +400,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"log"
 	"os"
@@ -354,14 +432,13 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 		}},
 	}
 	query := finite.Query{
-		Profile: finite.Profile,
 		Start:   finite.State{"state": "off"},
 		Goal:    finite.State{"state": "on"},
 		Horizon: horizon,
 	}
 
 	// 2. Compile the model/query to a formula and its decoding map.
-	encoding, err := finite.Compile(ctx, model, query, finite.Options{})
+	encoding, err := finite.Compile(ctx, model, query)
 	if err != nil {
 		return err
 	}
@@ -395,18 +472,22 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 	}
 
 	// 5. Only a checked SAT assignment can be decoded into a trace.
-	var trace *finite.Trace
+	type traceJSON struct {
+		States  []finite.State `json:"states"`
+		Actions []string       `json:"actions"`
+	}
+	var trace *traceJSON
 	if result.Status == sat.SAT {
 		decoded, err := encoding.Decode(result.Assignment)
 		if err != nil {
 			return err
 		}
-		trace = &decoded
+		trace = &traceJSON{States: decoded.States, Actions: decoded.Actions}
 	}
-	return json.NewEncoder(os.Stdout).Encode(struct {
-		Status  sat.Status    `json:"status"`
-		Horizon int           `json:"horizon"`
-		Trace   *finite.Trace `json:"trace,omitempty"`
+	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), struct {
+		Status  sat.Status `json:"status"`
+		Horizon int        `json:"horizon"`
+		Trace   *traceJSON `json:"trace,omitempty"`
 	}{Status: result.Status, Horizon: horizon, Trace: trace})
 }
 ```
@@ -504,12 +585,13 @@ go run ./examples/lga -check -artifacts artifacts/go-lga
 ```
 
 ```json
-{"conserved_mass_2x2":"UNSAT","leaky_mass_4x4":"SAT","counterexample_mass":[9,8]}
+{"conserved_mass_2x2":"UNSAT","leaky_mass_4x4":"SAT","counterexample_mass":[37,35,34,33]}
 ```
 
-The counterexample's particle counts depend on the solver's model; the status
-values do not. Whole-lattice conservation proofs are kept to 2×2 because CDCL
-proofs of counting arguments stop finishing at about 32 terms; see
+`counterexample_mass` is the particle count at each time of the counterexample;
+it depends on the solver's model, while the status values do not. Whole-lattice conservation proofs are kept to 2×2 because CDCL
+proofs of counting arguments over several steps stop finishing at about 24
+to 32 terms; see
 [contracts](docs/contracts.md#synchronous-boolean-automata-v01).
 
 ## Standalone command
@@ -617,11 +699,28 @@ go test -tags resolverintegration -count=1 -run TestRealTools ./sat/cadical ./lg
 The `lga` tests prove HPP and FHP conservation laws, find counterexamples for
 deliberately broken rules, and check walls and chirality.
 
-[Consumer conformance](docs/compatibility.md) exercises selected AHE Core/MCP,
-Pouch Product Go source snapshots and frozen Lab CNF fixtures in fresh ignored directories.
+[Consumer conformance](docs/compatibility.md) exercises selected external consumer
+Go source snapshots and frozen CNF fixtures in fresh ignored directories.
 The compatibility command is implemented in Go; it does not require Python.
 It does not switch the formal consumers. [Validation](docs/validation.md)
 records the observed scope and limitations.
+
+## Current limitations
+
+- Conservation proofs are counting arguments, which CDCL solvers prove slowly.
+  With the per-step `Violates` encoding and the proof check, a 16-term
+  whole-lattice sum (HPP 2×2 mass) is proved in about 2 s over three steps, a
+  24-term sum (FHP 2×2 mass, two steps) times out at 90 s, and 32 or more terms
+  often time out. One-step proofs cost the same as before, and without Start,
+  Forbidden or Goal patterns one step already covers every step count.
+  Counterexample search and row or column sums stay fast. See the
+  [measured results](docs/v0.1-design.md#per-step-comparison-2026-10-30).
+- Solving relies on the external pinned CaDiCaL and DRAT-trim. Calx contains
+  no solver or proof checker of its own.
+- Target platforms are macOS arm64 and Linux amd64. Consumer conformance has
+  run on macOS arm64 only. On Linux amd64, `make verify`, `make race` and the
+  real-tool tests pass in Docker, with CaDiCaL 3.0.1 and DRAT-trim built from
+  upstream sources. Windows is not a target.
 
 ## Requirements and version
 
@@ -632,7 +731,8 @@ The library module currently uses only the Go standard library. Verification
 also runs pinned errcheck v1.30.0 as an external Go development tool.
 Projection and encoding
 run without external executables; SAT solving requires the pinned CaDiCaL and
-DRAT-trim tools described above. The CLI exposes the same library operations to
-Python and other consumers.
+DRAT-trim tools described above. The CLI exposes the incidence, finite and
+checked-solve operations to Python and other consumers; `automaton` and `lga`
+are Go-only.
 
-License and source attribution: [MIT](LICENSE), [NOTICE](NOTICE).
+License: [MIT](LICENSE).

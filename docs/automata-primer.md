@@ -3,7 +3,8 @@
 This page explains, with pictures, what the `automaton` package does. It uses
 one small system throughout: elementary rule 90 on a ring of four cells. Every
 state, variable number and clause below was printed by Calx itself, not worked
-out by hand.
+out by hand. [`automaton/primer_test.go`](../automaton/primer_test.go) checks
+them without a SAT solver, so `go test` fails if they stop being true.
 
 For the exact rules see [contracts](contracts.md#synchronous-boolean-automata-v01);
 for the code path see [execution flow](execution-flow.md#5-automata-and-lattice-gases).
@@ -79,7 +80,7 @@ flowchart TD
 | --- | --- |
 | Can A become B in 3 steps? | `Steps: 3, Start: A, Goal: B` |
 | Does state S have a predecessor? | `Steps: 1, Goal: S` |
-| Can the quantity Q ever change within k steps? | `Steps: k, Violates: Q` |
+| Can the quantity Q change at any step within k steps? | `Steps: k, Violates: Q` |
 
 ## 3. How Compile turns a run into a formula
 
@@ -124,8 +125,8 @@ flowchart LR
 
 Any satisfying assignment is exactly a valid run that meets the query, and
 every valid run that meets it is a satisfying assignment. `Violates` adds
-counting circuits (totalizers) that compare the quantity at the first and last
-time; counting is also why large conservation proofs are slow
+counting circuits (totalizers) that compare the quantity before and after
+every step; counting is also why large conservation proofs are slow
 ([measured limits](v0.1-design.md#measured-conservation-proofs-are-counting-arguments)).
 
 ## 4. Garden of Eden states
@@ -183,6 +184,8 @@ q := automaton.Query{Steps: 1, Goal: S}
 
 UNSAT proves that S is a Garden of Eden state; SAT returns a predecessor in the
 decoded `Trajectory.States[0]`. With the pinned CaDiCaL and DRAT-trim, ○○○● and
-●○○○ are UNSAT with checked proofs, while ○●○● is SAT with predecessor ○○●○ and
-●●●● with ○○●●. The solver never lists all 2ⁿ states, so the same question
+●○○○ are UNSAT with checked proofs, while ○●○● is SAT and ●●●● is SAT. The
+solver returned the predecessors ○○●○ and ○○●●; each of these states has four
+predecessors (see the graph above), and another solver may return a different
+one. The solver never lists all 2ⁿ states, so the same question
 stays answerable for rows far too large to enumerate.

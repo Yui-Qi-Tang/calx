@@ -33,7 +33,8 @@ prefix may satisfy the goal. Blocked sequences must contain known actions and
 have exactly the query's horizon, including the empty sequence at horizon zero.
 A blocked query's UNSAT does not claim the unblocked problem is unsatisfiable.
 
-Encoding budgets default to 100,000 variables and 1,000,000 clauses. Budget
+Encoding budgets default to 100,000 variables and 1,000,000 clauses; change
+them with `WithMaxVariables` and `WithMaxClauses`, each at least 1. Budget
 exhaustion and cancellation are errors, never UNSAT. Context is checked at
 stages and during clause construction; this is not a hard CPU quota.
 
@@ -52,32 +53,48 @@ JSON. Native textual names are UTF-8-validated to prevent lossy JSON conversion.
 
 ## Synchronous Boolean automata (v0.1)
 
-`synchronous-boolean/v1` encodes exactly `Steps` synchronous steps (0–4,095) of
-a caller-supplied `automaton.System`: 1–1,048,576 cells and 1–16 bits per cell.
+`synchronous-boolean/v2` encodes exactly `Steps` synchronous steps (at least
+0, otherwise bounded only by the encoding budget) of a caller-supplied
+`automaton.System`: 1–1,048,576 cells and 1–16 bits per cell.
 More cells fail with `sat.ErrLimit`; other structural violations fail with
 `automaton.ErrInput`.
 Each cell lists distinct, in-range input bits. Inputs plus `Chooser` choice bits
 are at most 12 per cell. Choice bits are free variables, so a nondeterministic
 rule allows every choice. Start constrains time zero, Goal constrains the last
-state, and each nonempty Forbidden pattern is excluded at every time.
+state, and each Forbidden pattern is excluded at every time. An empty
+Forbidden pattern is rejected with `automaton.ErrInput`.
 
 A nonempty `Violates` quantity lists distinct in-range bits with weight +1 or
--1 and requires its value at time zero to differ from its value at the last
-state. Calx compares `P(0) + N(k)` with `P(k) + N(0)` through two exact
-totalizer counters, so the clause count grows roughly with the square of the
-number of terms. With zero steps the query is always UNSAT.
+-1 and requires some step to change its value: for some t, the value at time t
+differs from the value at time t−1. A run that changes the quantity and changes
+it back therefore counts, and UNSAT means the value is the same at every time
+of every admitted run. For each step Calx compares `P(t−1) + N(t)` with
+`P(t) + N(t−1)` through two exact totalizer counters, so the clause count grows
+with the number of steps and roughly with the square of the number of terms.
+With zero steps the query is always UNSAT. Version 1 compared only the first
+and last time.
 
 Proving a whole-lattice sum unchanged is a counting argument, which CDCL
 solvers handle poorly. Measured with the pinned CaDiCaL on HPP (90 s limit):
-16-term mass proofs finish in under a second, but 36- and 64-term mass proofs
-time out even for one step, and 32-term momentum proofs range from 1.5 s to a
-timeout. Counterexample search (SAT) and row or column sums stay fast. Treat
-UNKNOWN on a large quantity as inconclusive, never as a violation.
+16-term mass proofs finish in under a second for one step and in about 2 s
+for three, the 24-term FHP 2×2 mass proof over two steps times out, 36- and
+64-term mass proofs time out even for one step, and 32-term momentum proofs
+range from 0.6 s to a timeout. Comparing every step makes multi-step
+whole-lattice proofs slower than the version 1 endpoint comparison (see the
+[v0.1 design](v0.1-design.md#per-step-comparison-2026-10-30)).
+Counterexample search (SAT) and row or column sums stay fast. Without Start,
+Forbidden or Goal patterns, `Steps: 1` already proves a quantity for every
+state, and so for every step count; it costs the same as before. Treat UNKNOWN
+on a large quantity as inconclusive, never as a violation.
 
 `Next` must be deterministic. Compile evaluates it once per cell and input row
 before encoding; no call is concurrent, and panics are not recovered. The
-variable, clause and literal budget (defaults 100,000, 1,000,000 and 4,000,000)
-is checked before any rule evaluation. Budget exhaustion and cancellation are
+variable, clause and literal budget (defaults 100,000, 1,000,000 and 4,000,000;
+change them with `WithMaxVariables`, `WithMaxClauses` and `WithMaxLiterals`)
+is checked before any rule evaluation. A budget option below 1 fails with
+`automaton.ErrInput`. Context cancellation is checked on entry, before each
+cell's rule table and before each cell's clauses at every step; a canceled
+context is reported before any validation. Budget exhaustion and cancellation are
 errors, never UNSAT.
 
 Digest identifies the cell structure, the evaluated rule tables and the query,
@@ -96,9 +113,9 @@ that rotates a head-on pair counterclockwise when true. Both accept `Walls`,
 which is nil or has one entry per cell. A wall cell reverses every arriving
 particle and has no choice bit; walls conserve mass but not momentum. Call
 `Validate` before using a value as a System; `Run`, `Density` and `Velocity`
-validate it themselves. For 0–4,095 steps, `Run` must return the same final
-state as `automaton.Simulate` with the same choices; `Run` also accepts longer
-runs, which `Simulate` rejects. FHP's `choose` is not called for wall cells.
+validate it themselves. `Run` must return the same final state as
+`automaton.Simulate` with the same choices; `Run` keeps only the current
+state, while `Simulate` returns every state. FHP's `choose` is not called for wall cells.
 
 In both models a state is the post-collision configuration, and one step
 streams and then collides, so each HPP cell reads four arrival bits and each
@@ -120,7 +137,12 @@ strings must be valid UTF-8. Limits are checked before encoding.
 
 SAT requires a total assignment checked against every original clause. UNSAT
 requires a DRAT proof accepted by the pinned DRAT-trim process for strict
-consumers. An explicit UNKNOWN response returns `sat.ErrInconclusive` from
+consumers: exit 0 and an exact `s VERIFIED` line, without `s NOT VERIFIED`. One
+exception covers upstream DRAT-trim, which exits 1 for a formula that already
+contains an empty clause: exit 1 is accepted only when the formula has an empty
+clause, the output has a `c trivial UNSAT` line, and `s VERIFIED` is its only
+status line. Such a proof records method `drat-trim/trivial-unsat-empty-clause`
+instead of `drat-trim/exit-zero-exact-verified`. An explicit UNKNOWN response returns `sat.ErrInconclusive` from
 Solve while retaining `Status: UNKNOWN` and diagnostic artifacts. Require also
 returns `sat.ErrInconclusive` for UNKNOWN. Always inspect Solve's error first:
 partial answers/artifacts can survive a failed check. Require is a policy check
@@ -161,13 +183,16 @@ rejected. Omitted fields are allowed only when their native zero semantics or
 subsequent validation permits it. Horizon presence is mandatory for finite requests. CNF input must explicitly
 contain variables and clauses; use empty arrays for an empty formula/clause.
 
-- project accepts incidence.Graph; reconstruct accepts incidence.Projection.
+- project accepts `{node_ids,edges}`; reconstruct accepts
+  `{node_ids,edge_ids,source,target,relation_masks}`.
 - encode/solve-finite accept `{model,query,options?}`. Options has optional
-  max_variables and max_clauses. Query includes explicit profile/start/goal/horizon
-  and optional blocked sequences. The examples show the exact field spelling.
+  max_variables and max_clauses; zero or omitted keeps the default, and a
+  negative value is an input error. Query includes explicit profile/start/goal/horizon
+  and optional blocked sequences. The CLI accepts only the profile
+  `categorical-simple-first-hit/v1` and returns UNSUPPORTED otherwise. The examples show the exact field spelling.
 - decode accepts `{request:{model,query,options?},assignment:{"1":true,...}}`;
   it recompiles the request instead of trusting a supplied decoding map.
-- solve accepts sat.CNF JSON, or DIMACS with `--format dimacs`.
+- solve accepts CNF JSON `{variables,clauses,origins?}`, or DIMACS with `--format dimacs`.
 - pin-tools reads no input. It hashes `--solver` and `--checker`, which must be
   executable regular files, and writes a new `--out` manifest. The manifest
   has schema `calx-tools/v1`, absolute paths and digests. The envelope's data
@@ -190,8 +215,9 @@ The manifest is not authenticated. Executable bytes are still checked against
 its digests during tool preparation. `pin-tools` does not apply the runner's
 64 MiB executable limit, so an oversized tool pins successfully and fails at
 solve time with LIMIT. The standalone CLI does not read tool environment
-variables. The Go examples and the consumer-check command read the four
-`CALX_*` tool variables themselves.
+variables, and neither does `calx-check-consumers`, which requires `--tools`.
+The Go examples and the `resolverintegration` tests read the four `CALX_*` tool
+variables themselves.
 Old tool-input names are not aliases. Help exits 0 without reading input;
 unknown flags, malformed flag syntax and missing required flags exit 2 on stderr
 before input is read. CLI digest flags are parsed before input is read. Native
@@ -206,9 +232,16 @@ identifiers; `Parse` and `Validate` enforce the current representation. String
 casts and JSON decoding are not validation. The empty value means absent, while
 the digest of empty input is a valid nonempty value. Each caller still owns the
 exact byte serialization being identified; this type adds no canonicalization.
+Calx's own serializations (finite and automaton digests, `input.json`, runner
+identity and `limits.json`) keep the same bytes since the move to
+`encoding/json/v2`; automaton digests changed separately when the profile
+became `synchronous-boolean/v2`. `outcome.json` and the CLI's `data.result` also keep their
+bytes, except that the result's `profile` field (`"cnf/v0"`) was removed; the
+CLI schema stays `calx-cli/v2`. `internal/jsoncompat` tests check that it
+matches `encoding/json` on representative values, not on each serialization.
 
 Current CLI output is `calx-cli/v2`: digest JSON keys use `*_digest`, and artifact
 records use `digest`. The v1 keys are not aliases. Consumers must check the schema
 and update their field mappings. Old saved artifacts remain in their original
-format. Frozen Lab inputs and external Pouch records are handled by explicit
-consumer adapters; those external formats are not rewritten by this refactor.
+format. Frozen consumer inputs and external consumer records are handled by
+explicit consumer adapters; those external formats are not rewritten by this refactor.
