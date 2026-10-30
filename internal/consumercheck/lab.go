@@ -2,16 +2,14 @@ package consumercheck
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
-	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/sat"
-	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
 type labManifest struct {
@@ -30,10 +28,40 @@ type solveEnvelope struct {
 	Schema  string `json:"schema_version"`
 	Outcome string `json:"outcome"`
 	Data    struct {
-		Result cadical.Result `json:"result"`
-		Trace  *finite.Trace  `json:"trace"`
+		Result resultJSON `json:"result"`
+		Trace  *struct {
+			States  []map[string]string `json:"states"`
+			Actions []string            `json:"actions"`
+		} `json:"trace"`
 	} `json:"data"`
-	Error *struct{ Code, Message string } `json:"error"`
+	Error *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// resultJSON and validationJSON hold the result fields that Require reads.
+type resultJSON struct {
+	Status        sat.Status     `json:"status"`
+	InputDigest   digest.Digest  `json:"input_digest"`
+	FormulaDigest digest.Digest  `json:"formula_digest"`
+	Model         validationJSON `json:"model"`
+	Proof         validationJSON `json:"proof"`
+}
+
+type validationJSON struct {
+	Present      bool          `json:"present"`
+	Decoded      bool          `json:"decoded"`
+	Checked      bool          `json:"checked"`
+	TargetDigest digest.Digest `json:"target_digest"`
+}
+
+func (r resultJSON) sat() sat.Result {
+	return sat.Result{
+		Status: r.Status, InputDigest: r.InputDigest, FormulaDigest: r.FormulaDigest,
+		Model: sat.Validation{Present: r.Model.Present, Decoded: r.Model.Decoded, Checked: r.Model.Checked, TargetDigest: r.Model.TargetDigest},
+		Proof: sat.Validation{Present: r.Proof.Present, Decoded: r.Proof.Decoded, Checked: r.Proof.Checked, TargetDigest: r.Proof.TargetDigest},
+	}
 }
 
 func (s *session) solveCLI(ctx context.Context, binary, name, command, inputFormat string, input []byte) (solveEnvelope, error) {
@@ -58,7 +86,7 @@ func (s *session) solveCLI(ctx context.Context, binary, name, command, inputForm
 	if response.Schema != "calx-cli/v2" || response.Outcome != "OK" || response.Error != nil {
 		return response, fmt.Errorf("%s: CLI did not accept the input", name)
 	}
-	if err := response.Data.Result.Require(sat.Requirements{SATModelChecked: true, UNSATProofChecked: true}); err != nil {
+	if err := response.Data.Result.sat().Require(sat.Requirements{SATModelChecked: true, UNSATProofChecked: true}); err != nil {
 		return response, err
 	}
 	return response, nil

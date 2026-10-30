@@ -98,7 +98,7 @@ func model(mask int) finite.Model {
 	return m
 }
 func query(h int) finite.Query {
-	return finite.Query{Profile: finite.Profile, Start: finite.State{"x": "a"}, Goal: finite.State{"x": "c"}, Horizon: h}
+	return finite.Query{Start: finite.State{"x": "a"}, Goal: finite.State{"x": "c"}, Horizon: h}
 }
 
 // Enumerate paths directly from action rules, without reading matrix or CNF.
@@ -139,7 +139,7 @@ func TestExhaustiveThreeStateTransitionSystems(t *testing.T) {
 			q := query(h)
 			got := []string{}
 			for {
-				e, err := finite.Compile(context.Background(), m, q, finite.Options{})
+				e, err := finite.Compile(context.Background(), m, q)
 				if err != nil {
 					t.Fatal(mask, h, err)
 				}
@@ -169,7 +169,7 @@ func TestExhaustiveThreeStateTransitionSystems(t *testing.T) {
 func TestValidationAndBinding(t *testing.T) {
 	m := model(1 << 2)
 	q := query(1)
-	e, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	e, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestValidationAndBinding(t *testing.T) {
 		t.Fatal("alias", err)
 	}
 	q.Blocked = [][]string{{"ac"}}
-	blocked, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	blocked, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,22 +214,17 @@ func TestValidationAndBinding(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m, q := model(4), query(1)
 			edit(&m, &q)
-			if _, err := finite.Compile(context.Background(), m, q, finite.Options{}); !errors.Is(err, finite.ErrInput) {
+			if _, err := finite.Compile(context.Background(), m, q); !errors.Is(err, finite.ErrInput) {
 				t.Fatal(err)
 			}
 		})
 	}
-	q = query(1)
-	q.Profile = "all-walks"
-	if _, err := finite.Compile(context.Background(), m, q, finite.Options{}); !errors.Is(err, finite.ErrUnsupported) {
-		t.Fatal(err)
-	}
-	if _, err := finite.Compile(context.Background(), m, query(1), finite.Options{MaxVariables: 1}); !errors.Is(err, sat.ErrLimit) {
+	if _, err := finite.Compile(context.Background(), m, query(1), finite.WithMaxVariables(1)); !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := finite.Compile(ctx, m, query(1), finite.Options{}); !errors.Is(err, context.Canceled) {
+	if _, err := finite.Compile(ctx, m, query(1)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	var zero finite.Encoding
@@ -254,8 +249,8 @@ func TestMatrixRoundTripAndFrames(t *testing.T) {
 	if !reflect.DeepEqual(p, again) {
 		t.Fatal("matrix roundtrip")
 	}
-	q := finite.Query{Profile: finite.Profile, Start: finite.State{"x": "a", "y": "keep"}, Goal: finite.State{"x": "b"}, Horizon: 1}
-	e, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	q := finite.Query{Start: finite.State{"x": "a", "y": "keep"}, Goal: finite.State{"x": "b"}, Horizon: 1}
+	e, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,8 +270,8 @@ func TestMatrixRoundTripAndFrames(t *testing.T) {
 }
 func ExampleCompile() {
 	m := finite.Model{Fields: map[string][]string{"state": {"off", "on"}}, Actions: []finite.Action{{ID: "enable", Guard: finite.State{"state": "off"}, Effect: finite.State{"state": "on"}}}}
-	q := finite.Query{Profile: finite.Profile, Start: finite.State{"state": "off"}, Goal: finite.State{"state": "on"}, Horizon: 1}
-	e, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	q := finite.Query{Start: finite.State{"state": "off"}, Goal: finite.State{"state": "on"}, Horizon: 1}
+	e, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		panic(err)
 	}
@@ -292,7 +287,7 @@ func ExampleCompile() {
 
 func TestNativeInputIsolationAndUTF8(t *testing.T) {
 	m, q := model(4), query(1)
-	e, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	e, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +329,7 @@ func TestZeroHorizonBlockingAndForbiddenStates(t *testing.T) {
 	m := model(4)
 	q := query(0)
 	q.Goal = finite.State{"x": "a"}
-	e, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	e, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +342,7 @@ func TestZeroHorizonBlockingAndForbiddenStates(t *testing.T) {
 		t.Fatal(trace, err)
 	}
 	q.Blocked = [][]string{{}}
-	e, err = finite.Compile(context.Background(), m, q, finite.Options{})
+	e, err = finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +351,7 @@ func TestZeroHorizonBlockingAndForbiddenStates(t *testing.T) {
 	}
 	q = query(1)
 	m.Forbidden = []finite.State{{"x": "c"}}
-	e, err = finite.Compile(context.Background(), m, q, finite.Options{})
+	e, err = finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,4 +367,13 @@ func checkedCNF(t *testing.T, encoding *finite.Encoding) sat.CNF {
 		t.Fatal(err)
 	}
 	return formula
+}
+
+func TestTraceIsZero(t *testing.T) {
+	if !(finite.Trace{}).IsZero() {
+		t.Fatal("zero Trace must report IsZero")
+	}
+	if (finite.Trace{States: []finite.State{{}}}).IsZero() || (finite.Trace{Actions: []string{"a"}}).IsZero() {
+		t.Fatal("non-zero Trace reported zero")
+	}
 }

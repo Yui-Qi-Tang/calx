@@ -42,6 +42,19 @@ func (a calxAdapter) Solve(ctx context.Context, id string, formula CNF) (SolveRe
 	return out, nil
 }
 
+// finiteModel converts the planning model field by field; finite types have no
+// JSON tags to round-trip through.
+func finiteModel(m validation.Model) finite.Model {
+	out := finite.Model{Fields: m.Fields, Actions: make([]finite.Action, len(m.Actions))}
+	for _, s := range m.Forbidden {
+		out.Forbidden = append(out.Forbidden, finite.State(s))
+	}
+	for i, a := range m.Actions {
+		out.Actions[i] = finite.Action{ID: a.ID, Guard: finite.State(a.Guard), Effect: finite.State(a.Effect), Frame: a.Frame}
+	}
+	return out
+}
+
 func marshalValue(t *testing.T, value any) []byte {
 	t.Helper()
 	raw, err := json.Marshal(value)
@@ -53,10 +66,7 @@ func marshalValue(t *testing.T, value any) []byte {
 
 func TestCalxExactEncoding(t *testing.T) {
 	contract := twoBits()
-	var model finite.Model
-	if err := json.Unmarshal(marshalValue(t, contract.Model), &model); err != nil {
-		t.Fatal(err)
-	}
+	model := finiteModel(contract.Model)
 	matrix, err := Project(contract)
 	if err != nil {
 		t.Fatal(err)
@@ -77,8 +87,8 @@ func TestCalxExactEncoding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		query := finite.Query{Profile: finite.Profile, Start: finite.State(contract.Start), Goal: finite.State(contract.Goal), Horizon: horizon}
-		replacement, err := finite.Compile(context.Background(), model, query, finite.Options{})
+		query := finite.Query{Start: finite.State(contract.Start), Goal: finite.State(contract.Goal), Horizon: horizon}
+		replacement, err := finite.Compile(context.Background(), model, query)
 		if err != nil {
 			t.Fatal(err)
 		}

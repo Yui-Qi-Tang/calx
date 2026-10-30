@@ -3,7 +3,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"log"
 	"os"
 
@@ -40,13 +41,13 @@ func main() {
 	if err := parsed.CheckAssignment(assignment); err != nil {
 		log.Fatal(err)
 	}
-	output := json.NewEncoder(os.Stdout)
-	output.SetIndent("", "  ")
-	if err := output.Encode(struct {
+	// Deterministic sorts map keys so the output is reproducible.
+	output := jsontext.NewEncoder(os.Stdout, jsontext.WithIndent("  "))
+	if err := json.MarshalEncode(output, struct {
 		DIMACS            string       `json:"dimacs"`
 		Assignment        map[int]bool `json:"assignment"`
 		AssignmentChecked bool         `json:"assignment_checked"`
-	}{DIMACS: dimacs.String(), Assignment: assignment, AssignmentChecked: true}); err != nil {
+	}{DIMACS: dimacs.String(), Assignment: assignment, AssignmentChecked: true}, json.Deterministic(true)); err != nil {
 		log.Fatal(err)
 	}
 }

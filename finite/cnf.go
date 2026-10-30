@@ -2,11 +2,11 @@ package finite
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
@@ -22,12 +22,13 @@ type Encoding struct {
 }
 
 // Compile validates and encodes one exact-length query without invoking a solver.
-// The profile is explicit. Inputs must not be mutated concurrently.
-func Compile(ctx context.Context, model Model, query Query, options Options) (*Encoding, error) {
+// The digest records the package's fixed Profile. Inputs must not be mutated
+// concurrently.
+func Compile(ctx context.Context, model Model, query Query, opts ...Option) (*Encoding, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	limits, err := options.defaults()
+	limits, err := newBudget(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -72,10 +73,7 @@ func Compile(ctx context.Context, model Model, query Query, options Options) (*E
 	if err := b.encodeBlocked(query.Blocked); err != nil {
 		return nil, err
 	}
-	raw, err := json.Marshal(struct {
-		Model Model `json:"model"`
-		Query Query `json:"query"`
-	}{Model: model, Query: query})
+	raw, err := identity(model, query)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +86,7 @@ func Compile(ctx context.Context, model Model, query Query, options Options) (*E
 	}, nil
 }
 
-func checkEncodingBudget(matrix Matrix, forbidden []State, query Query, limits Options) error {
+func checkEncodingBudget(matrix Matrix, forbidden []State, query Query, limits budget) error {
 	horizon := int64(query.Horizon)
 	pairs := horizon * (horizon + 1) / 2
 	variables := (horizon+1)*int64(len(matrix.Coordinates)) + horizon*int64(len(matrix.ActionIDs)) + pairs*int64(len(matrix.Fields))
@@ -120,7 +118,7 @@ func checkEncodingBudget(matrix Matrix, forbidden []State, query Query, limits O
 		}
 	}
 	clauses := (horizon+1)*domainClauses + horizon*transitionClauses + int64(len(query.Start)+len(query.Goal)) + pairs*int64(len(matrix.Coordinates)+1) + int64(len(query.Blocked))
-	if variables > int64(limits.MaxVariables) || clauses > int64(limits.MaxClauses) {
+	if variables > int64(limits.variables) || clauses > int64(limits.clauses) {
 		return ErrEncodingLimit
 	}
 	return nil
@@ -187,4 +185,46 @@ func (e *Encoding) CNF() (sat.CNF, error) {
 		c.Clauses[i] = append([]int{}, row...)
 	}
 	return c, nil
+}
+
+// modelJSON, actionJSON and queryJSON fix the JSON form of the digest, so it
+// does not depend on the public types. Slices and maps are passed through, so
+// nil and empty stay distinct as in earlier digests.
+type modelJSON struct {
+	Fields    map[string][]string `json:"fields"`
+	Forbidden []State             `json:"forbidden"`
+	Actions   []actionJSON        `json:"actions"`
+}
+
+type actionJSON struct {
+	ID     string   `json:"id"`
+	Guard  State    `json:"guard"`
+	Effect State    `json:"effect"`
+	Frame  []string `json:"frame"`
+}
+
+type queryJSON struct {
+	Profile string     `json:"profile"`
+	Start   State      `json:"start"`
+	Goal    State      `json:"goal"`
+	Horizon int        `json:"horizon"`
+	Blocked [][]string `json:"blocked"`
+}
+
+// identity serializes the model and query that the digest identifies.
+func identity(model Model, query Query) ([]byte, error) {
+	var actions []actionJSON
+	if model.Actions != nil {
+		actions = make([]actionJSON, len(model.Actions))
+		for i, a := range model.Actions {
+			actions[i] = actionJSON(a)
+		}
+	}
+	return jsoncompat.Marshal(struct {
+		Model modelJSON `json:"model"`
+		Query queryJSON `json:"query"`
+	}{
+		Model: modelJSON{Fields: model.Fields, Forbidden: model.Forbidden, Actions: actions},
+		Query: queryJSON{Profile: Profile, Start: query.Start, Goal: query.Goal, Horizon: query.Horizon, Blocked: query.Blocked},
+	})
 }

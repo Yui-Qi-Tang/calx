@@ -2,11 +2,9 @@ package sat_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
@@ -119,38 +117,5 @@ func TestDigestBindingsRejectMalformedAndMismatchedValues(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestResultJSONUsesDigestFields(t *testing.T) {
-	d := digest.Sum([]byte("input"))
-	want := sat.Result{
-		Status: sat.SAT, InputDigest: d, FormulaDigest: d, SolverDigest: d, CheckerDigest: d,
-		Model:     sat.Validation{Present: true, Decoded: true, Checked: true, TargetDigest: d},
-		Artifacts: []sat.Artifact{{ID: "query/input.json", Digest: d, Bytes: 5}},
-	}
-	raw, err := json.Marshal(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []string{"input_digest", "formula_digest", "solver_digest", "checker_digest", "target_digest", "digest"} {
-		if !bytes.Contains(raw, []byte(`"`+key+`"`)) {
-			t.Errorf("missing JSON field %s", key)
-		}
-	}
-	if strings.Contains(string(raw), "sha256") {
-		t.Fatal("result leaked algorithm-specific field names")
-	}
-	var got sat.Result
-	if err := json.Unmarshal(raw, &got); err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("round trip = %+v, %v", got, err)
-	}
-	legacy := fmt.Sprintf(`{"status":"SAT","input_sha256":%q,"model":{"present":true,"decoded":true,"checked":true,"target_sha256":%q}}`, d, d)
-	var old sat.Result
-	if err := json.Unmarshal([]byte(legacy), &old); err != nil {
-		t.Fatal(err)
-	}
-	if err := old.Require(sat.Requirements{SATModelChecked: true}); !errors.Is(err, sat.ErrGuarantee) {
-		t.Fatalf("legacy fields silently accepted: %v", err)
 	}
 }

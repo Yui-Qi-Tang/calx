@@ -12,14 +12,13 @@ import (
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
-// Profile identifies exact-length, simple, first-hit, action-sequence queries.
+// Profile names the query semantics this package encodes: exact-length,
+// simple, first-hit action sequences. Every digest records it, so a later
+// change of semantics also changes the digest.
 const Profile = "categorical-simple-first-hit/v1"
 
 // ErrInput marks a malformed model or query, not a logical UNSAT result.
 var ErrInput = errors.New("invalid finite input")
-
-// ErrUnsupported marks an unsupported semantic profile.
-var ErrUnsupported = errors.New("unsupported finite profile")
 
 // ErrEncodingLimit marks an operational encoding budget, not unreachability.
 var ErrEncodingLimit = sat.ErrLimit
@@ -30,30 +29,31 @@ type State map[string]string
 // Action has conjunctive guards, constant effects and explicit unchanged fields.
 // Every model field must occur exactly once in either Effect or Frame.
 type Action struct {
-	ID     string   `json:"id"`
-	Guard  State    `json:"guard"`
-	Effect State    `json:"effect"`
-	Frame  []string `json:"frame"`
+	ID     string
+	Guard  State
+	Effect State
+	Frame  []string
 }
 
 // Model declares finite categorical domains and permitted transitions.
 type Model struct {
-	Fields    map[string][]string `json:"fields"`
-	Forbidden []State             `json:"forbidden"`
-	Actions   []Action            `json:"actions"`
+	Fields    map[string][]string
+	Forbidden []State
+	Actions   []Action
 }
 
 // Query binds the exact semantics of one CNF. Horizon is an exact action count,
 // including zero. Blocked excludes complete action sequences of that length.
 type Query struct {
-	Profile string     `json:"profile"`
-	Start   State      `json:"start"`
-	Goal    State      `json:"goal"`
-	Horizon int        `json:"horizon"`
-	Blocked [][]string `json:"blocked"`
+	Start   State
+	Goal    State
+	Horizon int
+	Blocked [][]string
 }
 
-// v1 support limits on input models and queries; see Options.
+// v1 support limits: models have at most 16 fields, 64 values per field, 64
+// actions, 256 forbidden patterns and 4096 Cartesian states; horizons are
+// 0..4095; names are at most 200 bytes.
 const (
 	maxFields    = 16
 	maxValues    = 64
@@ -64,17 +64,47 @@ const (
 	maxNameBytes = 200
 )
 
-// Options bounds encoding work. Zero fields use SAT defaults. Input models are
-// capped at 16 fields, 64 values/field, 64 actions, 256 forbidden patterns and
-// 4096 Cartesian states; horizons are 0..4095. These are v1 support limits.
-type Options struct {
-	MaxVariables int `json:"max_variables"`
-	MaxClauses   int `json:"max_clauses"`
+// Option changes the encoding budget of Compile and reports an invalid value.
+// Exceeding the budget returns ErrEncodingLimit.
+type Option func(*budget) error
+
+// WithMaxVariables caps the number of CNF variables (default 100,000). n must
+// be at least 1.
+func WithMaxVariables(n int) Option {
+	return func(b *budget) error {
+		if n < 1 {
+			return fmt.Errorf("%w: max variables %d, want at least 1", ErrInput, n)
+		}
+		b.variables = n
+		return nil
+	}
 }
 
-func (o Options) defaults() (Options, error) {
-	l, err := (sat.Limits{MaxVariables: o.MaxVariables, MaxClauses: o.MaxClauses}).WithDefaults()
-	return Options{l.MaxVariables, l.MaxClauses}, err
+// WithMaxClauses caps the number of CNF clauses (default 1,000,000). n must be
+// at least 1.
+func WithMaxClauses(n int) Option {
+	return func(b *budget) error {
+		if n < 1 {
+			return fmt.Errorf("%w: max clauses %d, want at least 1", ErrInput, n)
+		}
+		b.clauses = n
+		return nil
+	}
+}
+
+// budget bounds encoding work. Its defaults equal the sat.Limits defaults.
+type budget struct {
+	variables, clauses int
+}
+
+func newBudget(opts []Option) (budget, error) {
+	b := budget{variables: 100_000, clauses: 1_000_000}
+	for _, opt := range opts {
+		if err := opt(&b); err != nil {
+			return budget{}, err
+		}
+	}
+	return b, nil
 }
 func partial(m Model, s State) bool {
 	for f, v := range s {
@@ -153,14 +183,11 @@ func (m Model) Validate() error {
 	}
 	return nil
 }
-func (q Query) validate(m Model, o Options) error {
-	if q.Profile != Profile {
-		return ErrUnsupported
-	}
+func (q Query) validate(m Model, o budget) error {
 	if q.Horizon < 0 || q.Horizon > maxHorizon || !valid(m, q.Start) || len(q.Goal) == 0 || !partial(m, q.Goal) {
 		return fmt.Errorf("%w: query", ErrInput)
 	}
-	if len(q.Blocked) > o.MaxClauses {
+	if len(q.Blocked) > o.clauses {
 		return ErrEncodingLimit
 	}
 	ids := map[string]bool{}
@@ -182,6 +209,10 @@ func (q Query) validate(m Model, o Options) error {
 
 // Trace is one decoded state/action sequence, not an execution receipt.
 type Trace struct {
-	States  []State  `json:"states"`
-	Actions []string `json:"actions"`
+	States  []State
+	Actions []string
 }
+
+// IsZero reports whether t has no states and no actions. A decoded trace is
+// never zero: it holds at least the start state.
+func (t Trace) IsZero() bool { return len(t.States) == 0 && len(t.Actions) == 0 }

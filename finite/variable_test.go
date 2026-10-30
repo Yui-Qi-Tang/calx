@@ -2,7 +2,6 @@ package finite_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -20,17 +19,6 @@ func TestVariableRoleContract(t *testing.T) {
 	for _, variable := range valid {
 		if err := variable.Validate(m, 1); err != nil {
 			t.Fatal(variable, err)
-		}
-		raw, err := json.Marshal(variable)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var roundTrip finite.Variable
-		if err := json.Unmarshal(raw, &roundTrip); err != nil {
-			t.Fatal(err)
-		}
-		if err := roundTrip.Validate(m, 1); err != nil {
-			t.Fatal(err)
 		}
 	}
 	invalid := map[string]finite.Variable{
@@ -81,7 +69,7 @@ func TestEncodingAccessorsRejectUninitializedValues(t *testing.T) {
 
 func TestOtherTimePresenceAndCopyIsolation(t *testing.T) {
 	m, q := model(4), query(1)
-	encoding, err := finite.Compile(context.Background(), m, q, finite.Options{})
+	encoding, err := finite.Compile(context.Background(), m, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,15 +108,15 @@ func TestFailedCompileNeverReturnsPartialEncoding(t *testing.T) {
 		ctx     context.Context
 		model   finite.Model
 		query   finite.Query
-		options finite.Options
+		options []finite.Option
 	}{
 		"canceled":        {ctx: ctx, model: model(4), query: query(1)},
-		"budget":          {ctx: context.Background(), model: model(4), query: query(1), options: finite.Options{MaxVariables: 1}},
+		"budget":          {ctx: context.Background(), model: model(4), query: query(1), options: []finite.Option{finite.WithMaxVariables(1)}},
 		"invalid model":   {ctx: context.Background(), model: finite.Model{}, query: query(1)},
 		"missing profile": {ctx: context.Background(), model: model(4), query: finite.Query{}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			encoding, err := finite.Compile(input.ctx, input.model, input.query, input.options)
+			encoding, err := finite.Compile(input.ctx, input.model, input.query, input.options...)
 			if err == nil || encoding != nil {
 				t.Fatalf("failed compilation exposed a partial encoding: %v %v", encoding, err)
 			}

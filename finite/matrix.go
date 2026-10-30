@@ -10,20 +10,20 @@ import (
 
 // Coordinate identifies one categorical value in the state matrix.
 type Coordinate struct {
-	Field string `json:"field"`
-	Value string `json:"value"`
+	Field string
+	Value string
 }
 
 // Matrix uses stable sorted field, value and action axes. A guard or effect cell
 // is one exactly when that coordinate is explicitly required or assigned. Frame
 // rows identify unchanged fields. An absent guard field has all-zero cells.
 type Matrix struct {
-	Fields      []string     `json:"fields"`
-	Coordinates []Coordinate `json:"coordinates"`
-	ActionIDs   []string     `json:"action_ids"`
-	Guard       [][]int      `json:"guard"`
-	Effect      [][]int      `json:"effect"`
-	Frame       [][]int      `json:"frame"`
+	Fields      []string
+	Coordinates []Coordinate
+	ActionIDs   []string
+	Guard       [][]int
+	Effect      [][]int
+	Frame       [][]int
 }
 
 // Project validates a supported model and produces independently owned matrices.
@@ -31,7 +31,20 @@ func Project(model Model) (Matrix, error) {
 	if err := model.Validate(); err != nil {
 		return Matrix{}, err
 	}
-	var m Matrix
+	cells := 0
+	for _, values := range model.Fields {
+		cells += len(values)
+	}
+	actions := slices.Clone(model.Actions)
+	slices.SortFunc(actions, func(a, b Action) int { return strings.Compare(a.ID, b.ID) })
+	m := Matrix{
+		Fields:      make([]string, 0, len(model.Fields)),
+		Coordinates: make([]Coordinate, 0, cells),
+		ActionIDs:   make([]string, 0, len(actions)),
+		Guard:       make([][]int, 0, len(actions)),
+		Effect:      make([][]int, 0, len(actions)),
+		Frame:       make([][]int, 0, len(actions)),
+	}
 	for field := range model.Fields {
 		m.Fields = append(m.Fields, field)
 	}
@@ -43,8 +56,6 @@ func Project(model Model) (Matrix, error) {
 			m.Coordinates = append(m.Coordinates, Coordinate{Field: field, Value: value})
 		}
 	}
-	actions := slices.Clone(model.Actions)
-	slices.SortFunc(actions, func(a, b Action) int { return strings.Compare(a.ID, b.ID) })
 	for _, action := range actions {
 		m.ActionIDs = append(m.ActionIDs, action.ID)
 		guard, effect, frame := make([]int, len(m.Coordinates)), make([]int, len(m.Coordinates)), make([]int, len(m.Fields))

@@ -20,13 +20,12 @@ func main() {
 		}},
 	}
 	query := finite.Query{
-		Profile: finite.Profile,
 		Start:   finite.State{"state": "off"},
 		Goal:    finite.State{"state": "on"},
 		Horizon: 1, // Exactly one action.
 	}
 
-	encoding, err := finite.Compile(context.Background(), model, query, finite.Options{})
+	encoding, err := finite.Compile(context.Background(), model, query)
 	if err != nil {
 		log.Fatal(err)
 	}

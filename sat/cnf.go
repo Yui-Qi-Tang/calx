@@ -14,8 +14,8 @@ import (
 // Variable binds a contiguous DIMACS ID to opaque consumer metadata.
 // Metadata is retained verbatim; it is not interpreted as a logical condition.
 type Variable struct {
-	ID       int               `json:"id"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	ID       int
+	Metadata map[string]string
 }
 
 // CNF is a conjunction of clauses, each a disjunction of signed variable IDs.
@@ -23,9 +23,9 @@ type Variable struct {
 // each clause to all contributing consumer condition IDs (many-to-many).
 // The caller must not mutate inputs while Solve is running.
 type CNF struct {
-	Variables []Variable `json:"variables"`
-	Clauses   [][]int    `json:"clauses"`
-	Origins   [][]string `json:"origins,omitempty"`
+	Variables []Variable
+	Clauses   [][]int
+	Origins   [][]string
 }
 
 // CheckShape verifies DIMACS bounds before tools consume a formula.

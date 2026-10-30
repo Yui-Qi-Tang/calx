@@ -43,7 +43,7 @@ type Runner struct {
 // Assignment presence alone does not imply a successful model check.
 type Result struct {
 	sat.Result
-	Assignment map[int]bool `json:"assignment,omitempty"`
+	Assignment map[int]bool
 }
 
 // IsZero reports whether r is the zero Result, including no assignment. It

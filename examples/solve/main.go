@@ -3,7 +3,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"log"
 	"os"
@@ -34,14 +35,13 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 		}},
 	}
 	query := finite.Query{
-		Profile: finite.Profile,
 		Start:   finite.State{"state": "off"},
 		Goal:    finite.State{"state": "on"},
 		Horizon: horizon,
 	}
 
 	// 2. Compile the model/query to a formula and its decoding map.
-	encoding, err := finite.Compile(ctx, model, query, finite.Options{})
+	encoding, err := finite.Compile(ctx, model, query)
 	if err != nil {
 		return err
 	}
@@ -75,17 +75,21 @@ func run(ctx context.Context, horizon int, artifacts string) error {
 	}
 
 	// 5. Only a checked SAT assignment can be decoded into a trace.
-	var trace *finite.Trace
+	type traceJSON struct {
+		States  []finite.State `json:"states"`
+		Actions []string       `json:"actions"`
+	}
+	var trace *traceJSON
 	if result.Status == sat.SAT {
 		decoded, err := encoding.Decode(result.Assignment)
 		if err != nil {
 			return err
 		}
-		trace = &decoded
+		trace = &traceJSON{States: decoded.States, Actions: decoded.Actions}
 	}
-	return json.NewEncoder(os.Stdout).Encode(struct {
-		Status  sat.Status    `json:"status"`
-		Horizon int           `json:"horizon"`
-		Trace   *finite.Trace `json:"trace,omitempty"`
+	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), struct {
+		Status  sat.Status `json:"status"`
+		Horizon int        `json:"horizon"`
+		Trace   *traceJSON `json:"trace,omitempty"`
 	}{Status: result.Status, Horizon: horizon, Trace: trace})
 }

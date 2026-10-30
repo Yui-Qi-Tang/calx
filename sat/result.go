@@ -22,8 +22,6 @@ const (
 var (
 	// ErrInput marks malformed input.
 	ErrInput = errors.New("invalid resolver input")
-	// ErrUnsupported marks a language construct outside the supported profile.
-	ErrUnsupported = errors.New("unsupported logic")
 	// ErrLimit marks a configured input, output or accepted proof limit.
 	ErrLimit = errors.New("resolver limit exceeded")
 	// ErrProtocol marks output inconsistent with the pinned tool protocol.
@@ -38,9 +36,9 @@ var (
 
 // Artifact is a relative file identity within the configured artifact root.
 type Artifact struct {
-	ID     string        `json:"id"`
-	Digest digest.Digest `json:"digest"`
-	Bytes  int64         `json:"bytes"`
+	ID     string
+	Digest digest.Digest
+	Bytes  int64
 }
 
 // Validation separates availability, decoding and successful checking.
@@ -48,11 +46,11 @@ type Artifact struct {
 // Method and TargetDigest are populated only after a successful check.
 // For models the target is input.json; for proofs it is the encoded formula.
 type Validation struct {
-	Present      bool          `json:"present"`
-	Decoded      bool          `json:"decoded"`
-	Checked      bool          `json:"checked"`
-	Method       string        `json:"method,omitempty"`
-	TargetDigest digest.Digest `json:"target_digest,omitempty"`
+	Present      bool
+	Decoded      bool
+	Checked      bool
+	Method       string
+	TargetDigest digest.Digest
 }
 
 // IsZero reports whether v is the zero Validation: nothing present, decoded or
@@ -65,14 +63,14 @@ func (v Validation) IsZero() bool {
 // Callers must inspect the Solve error before using the result. Even on error,
 // a backend answer and partial artifacts may be available for diagnosis.
 type Result struct {
-	Status        Status        `json:"status"`
-	InputDigest   digest.Digest `json:"input_digest,omitempty"`
-	FormulaDigest digest.Digest `json:"formula_digest,omitempty"`
-	SolverDigest  digest.Digest `json:"solver_digest"`
-	CheckerDigest digest.Digest `json:"checker_digest,omitempty"`
-	Model         Validation    `json:"model"`
-	Proof         Validation    `json:"proof"`
-	Artifacts     []Artifact    `json:"artifacts,omitempty"`
+	Status        Status
+	InputDigest   digest.Digest
+	FormulaDigest digest.Digest
+	SolverDigest  digest.Digest
+	CheckerDigest digest.Digest
+	Model         Validation
+	Proof         Validation
+	Artifacts     []Artifact
 }
 
 // IsZero reports whether r is the zero Result. A runner never returns a zero

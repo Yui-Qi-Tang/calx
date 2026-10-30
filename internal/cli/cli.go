@@ -4,7 +4,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,7 +14,9 @@ import (
 	"github.com/Yui-Qi-Tang/calx/digest"
 	"github.com/Yui-Qi-Tang/calx/finite"
 	"github.com/Yui-Qi-Tang/calx/incidence"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/internal/jsoninput"
+	"github.com/Yui-Qi-Tang/calx/internal/toolmanifest"
 	"github.com/Yui-Qi-Tang/calx/internal/toolrun"
 	"github.com/Yui-Qi-Tang/calx/sat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
@@ -23,10 +24,26 @@ import (
 
 const maxInput = 16 << 20
 
+// errUnsupported marks a finite request with an unknown query profile.
+var errUnsupported = errors.New("unsupported finite profile")
+
+// The CLI owns its JSON forms; finite types carry no JSON tags. Conversions
+// pass slices and maps through, so nil and empty stay distinct.
 type finiteRequest struct {
-	Model   finite.Model   `json:"model"`
-	Query   queryInput     `json:"query"`
-	Options finite.Options `json:"options,omitempty"`
+	Model   modelInput   `json:"model"`
+	Query   queryInput   `json:"query"`
+	Options optionsInput `json:"options"`
+}
+type modelInput struct {
+	Fields    map[string][]string `json:"fields"`
+	Forbidden []finite.State      `json:"forbidden"`
+	Actions   []actionInput       `json:"actions"`
+}
+type actionInput struct {
+	ID     string       `json:"id"`
+	Guard  finite.State `json:"guard"`
+	Effect finite.State `json:"effect"`
+	Frame  []string     `json:"frame"`
 }
 type queryInput struct {
 	Profile string       `json:"profile"`
@@ -36,12 +53,45 @@ type queryInput struct {
 	Blocked [][]string   `json:"blocked,omitempty"`
 }
 
+func (m modelInput) finite() finite.Model {
+	var actions []finite.Action
+	if m.Actions != nil {
+		actions = make([]finite.Action, len(m.Actions))
+		for i, a := range m.Actions {
+			actions[i] = finite.Action(a)
+		}
+	}
+	return finite.Model{Fields: m.Fields, Forbidden: m.Forbidden, Actions: actions}
+}
+
+// optionsInput is the request's encoding budget. A zero or omitted field keeps
+// the finite default.
+type optionsInput struct {
+	MaxVariables int `json:"max_variables"`
+	MaxClauses   int `json:"max_clauses"`
+}
+
+func (o optionsInput) finite() []finite.Option {
+	var opts []finite.Option
+	if o.MaxVariables != 0 {
+		opts = append(opts, finite.WithMaxVariables(o.MaxVariables))
+	}
+	if o.MaxClauses != 0 {
+		opts = append(opts, finite.WithMaxClauses(o.MaxClauses))
+	}
+	return opts
+}
+
 func (r finiteRequest) compile(ctx context.Context) (*finite.Encoding, error) {
 	if r.Query.Horizon == nil {
 		return nil, fmt.Errorf("%w: horizon required", finite.ErrInput)
 	}
-	q := finite.Query{Profile: r.Query.Profile, Start: r.Query.Start, Goal: r.Query.Goal, Horizon: *r.Query.Horizon, Blocked: r.Query.Blocked}
-	return finite.Compile(ctx, r.Model, q, r.Options)
+	// profile versions the request format; finite.Profile is the only one.
+	if r.Query.Profile != finite.Profile {
+		return nil, errUnsupported
+	}
+	q := finite.Query{Start: r.Query.Start, Goal: r.Query.Goal, Horizon: *r.Query.Horizon, Blocked: r.Query.Blocked}
+	return finite.Compile(ctx, r.Model.finite(), q, r.Options.finite()...)
 }
 
 type response struct {
@@ -58,9 +108,7 @@ type failure struct {
 
 func emit(w io.Writer, r response) error {
 	r.Schema = "calx-cli/v2"
-	e := json.NewEncoder(w)
-	e.SetIndent("", "  ")
-	return e.Encode(r)
+	return jsoncompat.Write(w, r, "  ")
 }
 func code(err error) string {
 	switch {
@@ -70,7 +118,7 @@ func code(err error) string {
 		return "TIMEOUT"
 	case errors.Is(err, sat.ErrLimit) || errors.Is(err, incidence.ErrLimit):
 		return "LIMIT"
-	case errors.Is(err, finite.ErrUnsupported) || errors.Is(err, sat.ErrUnsupported):
+	case errors.Is(err, errUnsupported):
 		return "UNSUPPORTED"
 	case errors.Is(err, sat.ErrInconclusive):
 		return "INCONCLUSIVE"
@@ -105,8 +153,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	var out response
 	if opts.command == "pin-tools" {
 		out = response{Outcome: "ERROR"}
-		var m toolManifest
-		if m, err = pinTools(opts.tools.SolverPath, opts.tools.CheckerPath, opts.output); err == nil {
+		var m toolmanifest.Manifest
+		if m, err = toolmanifest.Write(opts.tools.SolverPath, opts.tools.CheckerPath, opts.output); err == nil {
 			out.Data = m
 		}
 	} else {
@@ -175,26 +223,71 @@ func execute(ctx context.Context, cmd, format string, raw []byte, cfg cadical.Co
 	}
 }
 
+// graphJSON, edgeJSON and projectionJSON are the JSON forms of incidence
+// types. Conversions pass slices and maps through, so nil and empty stay
+// distinct.
+type graphJSON struct {
+	NodeIDs []string   `json:"node_ids"`
+	Edges   []edgeJSON `json:"edges"`
+}
+type edgeJSON struct {
+	ID       string `json:"id"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Relation string `json:"relation"`
+}
+type projectionJSON struct {
+	NodeIDs       []string         `json:"node_ids"`
+	EdgeIDs       []string         `json:"edge_ids"`
+	Source        [][]int          `json:"source"`
+	Target        [][]int          `json:"target"`
+	RelationMasks map[string][]int `json:"relation_masks"`
+}
+
 func project(raw []byte) (any, error) {
-	var g incidence.Graph
+	var g graphJSON
 	if err := jsoninput.Decode(raw, &g); err != nil {
 		return nil, err
 	}
 	if err := jsoninput.Require(raw, "node_ids", "edges"); err != nil {
 		return nil, err
 	}
-	return incidence.Project(g, incidence.Limits{})
+	var edges []incidence.Edge
+	if g.Edges != nil {
+		edges = make([]incidence.Edge, len(g.Edges))
+		for i, e := range g.Edges {
+			edges[i] = incidence.Edge(e)
+		}
+	}
+	p, err := incidence.Project(incidence.Graph{NodeIDs: g.NodeIDs, Edges: edges}, incidence.Limits{})
+	if err != nil {
+		// A failed projection reports empty matrices, not nulls.
+		return projectionJSON{NodeIDs: []string{}, EdgeIDs: []string{}, Source: [][]int{}, Target: [][]int{}, RelationMasks: map[string][]int{}}, err
+	}
+	return projectionJSON(p), nil
 }
 
 func reconstruct(raw []byte) (any, error) {
-	var p incidence.Projection
+	var p projectionJSON
 	if err := jsoninput.Decode(raw, &p); err != nil {
 		return nil, err
 	}
 	if err := jsoninput.Require(raw, "node_ids", "edge_ids", "source", "target", "relation_masks"); err != nil {
 		return nil, err
 	}
-	return p.Graph(incidence.Limits{})
+	g, err := incidence.Projection(p).Graph(incidence.Limits{})
+	if err != nil {
+		// A failed reconstruction reports an empty graph, not nulls.
+		return graphJSON{NodeIDs: []string{}, Edges: []edgeJSON{}}, err
+	}
+	var edges []edgeJSON
+	if g.Edges != nil {
+		edges = make([]edgeJSON, len(g.Edges))
+		for i, e := range g.Edges {
+			edges[i] = edgeJSON(e)
+		}
+	}
+	return graphJSON{NodeIDs: g.NodeIDs, Edges: edges}, nil
 }
 
 func decode(ctx context.Context, raw []byte) (any, error) {
@@ -209,7 +302,12 @@ func decode(ctx context.Context, raw []byte) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e.Decode(in.Assignment)
+	trace, err := e.Decode(in.Assignment)
+	if err != nil {
+		// A failed decode reports an empty trace, not nulls.
+		return traceOutput{States: []finite.State{}, Actions: []string{}}, err
+	}
+	return traceOutput(trace), nil
 }
 
 // compileRequest decodes a finite request and compiles its query, returning
@@ -234,6 +332,23 @@ func compileRequest(ctx context.Context, raw []byte) (*finite.Encoding, sat.CNF,
 	return e, c, queryDigest, nil
 }
 
+// variableOutput is the JSON form of one finite variable in encode output.
+type variableOutput struct {
+	ID        int                 `json:"id"`
+	Kind      finite.VariableKind `json:"kind"`
+	Time      int                 `json:"time"`
+	OtherTime *int                `json:"other_time,omitempty"`
+	Field     finite.FieldName    `json:"field,omitempty"`
+	Value     finite.Category     `json:"value,omitempty"`
+	Action    finite.ActionID     `json:"action,omitempty"`
+}
+
+// traceOutput is the JSON form of a decoded finite trace.
+type traceOutput struct {
+	States  []finite.State `json:"states"`
+	Actions []string       `json:"actions"`
+}
+
 func encode(ctx context.Context, raw []byte) (any, error) {
 	e, c, queryDigest, err := compileRequest(ctx, raw)
 	if err != nil {
@@ -243,16 +358,23 @@ func encode(ctx context.Context, raw []byte) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	var outputs []variableOutput
+	if variables != nil {
+		outputs = make([]variableOutput, len(variables))
+		for i, v := range variables {
+			outputs[i] = variableOutput(v)
+		}
+	}
 	var b bytes.Buffer
 	if err := c.WriteDIMACS(&b); err != nil {
 		return nil, err
 	}
 	return struct {
-		QueryDigest digest.Digest     `json:"query_digest"`
-		CNF         sat.CNF           `json:"cnf"`
-		Variables   []finite.Variable `json:"variables"`
-		DIMACS      string            `json:"dimacs"`
-	}{QueryDigest: queryDigest, CNF: c, Variables: variables, DIMACS: b.String()}, nil
+		QueryDigest digest.Digest    `json:"query_digest"`
+		CNF         cnfJSON          `json:"cnf"`
+		Variables   []variableOutput `json:"variables"`
+		DIMACS      string           `json:"dimacs"`
+	}{QueryDigest: queryDigest, CNF: cnfOutput(c), Variables: outputs, DIMACS: b.String()}, nil
 }
 
 func solveFinite(ctx context.Context, raw []byte, cfg cadical.Config, id string) (any, error) {
@@ -267,14 +389,86 @@ func readCNF(format string, raw []byte) (sat.CNF, error) {
 	if format == "dimacs" {
 		return sat.ReadDIMACS(bytes.NewReader(raw), sat.Limits{})
 	}
-	var c sat.CNF
+	var c cnfJSON
 	if err := jsoninput.Decode(raw, &c); err != nil {
 		return sat.CNF{}, err
 	}
 	if err := jsoninput.Require(raw, "variables", "clauses"); err != nil {
 		return sat.CNF{}, err
 	}
-	return c, nil
+	return c.sat(), nil
+}
+
+// cnfJSON is the JSON form of a CNF in solve input and encode output.
+type cnfJSON struct {
+	Variables []satVariableJSON `json:"variables"`
+	Clauses   [][]int           `json:"clauses"`
+	Origins   [][]string        `json:"origins,omitempty"`
+}
+type satVariableJSON struct {
+	ID       int               `json:"id"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+func cnfOutput(c sat.CNF) cnfJSON {
+	var variables []satVariableJSON
+	if c.Variables != nil {
+		variables = make([]satVariableJSON, len(c.Variables))
+		for i, v := range c.Variables {
+			variables[i] = satVariableJSON(v)
+		}
+	}
+	return cnfJSON{Variables: variables, Clauses: c.Clauses, Origins: c.Origins}
+}
+
+func (c cnfJSON) sat() sat.CNF {
+	var variables []sat.Variable
+	if c.Variables != nil {
+		variables = make([]sat.Variable, len(c.Variables))
+		for i, v := range c.Variables {
+			variables[i] = sat.Variable(v)
+		}
+	}
+	return sat.CNF{Variables: variables, Clauses: c.Clauses, Origins: c.Origins}
+}
+
+// resultOutput, validationOutput and artifactOutput are the JSON form of a
+// solver result.
+type resultOutput struct {
+	Status        sat.Status       `json:"status"`
+	InputDigest   digest.Digest    `json:"input_digest,omitempty"`
+	FormulaDigest digest.Digest    `json:"formula_digest,omitempty"`
+	SolverDigest  digest.Digest    `json:"solver_digest"`
+	CheckerDigest digest.Digest    `json:"checker_digest,omitempty"`
+	Model         validationOutput `json:"model"`
+	Proof         validationOutput `json:"proof"`
+	Artifacts     []artifactOutput `json:"artifacts,omitempty"`
+	Assignment    map[int]bool     `json:"assignment,omitempty"`
+}
+type validationOutput struct {
+	Present      bool          `json:"present"`
+	Decoded      bool          `json:"decoded"`
+	Checked      bool          `json:"checked"`
+	Method       string        `json:"method,omitempty"`
+	TargetDigest digest.Digest `json:"target_digest,omitempty"`
+}
+type artifactOutput struct {
+	ID     string        `json:"id"`
+	Digest digest.Digest `json:"digest"`
+	Bytes  int64         `json:"bytes"`
+}
+
+func newResultOutput(r cadical.Result) resultOutput {
+	artifacts := make([]artifactOutput, len(r.Artifacts))
+	for i, a := range r.Artifacts {
+		artifacts[i] = artifactOutput(a)
+	}
+	return resultOutput{
+		Status: r.Status, InputDigest: r.InputDigest, FormulaDigest: r.FormulaDigest,
+		SolverDigest: r.SolverDigest, CheckerDigest: r.CheckerDigest,
+		Model: validationOutput(r.Model), Proof: validationOutput(r.Proof),
+		Artifacts: artifacts, Assignment: r.Assignment,
+	}
 }
 
 // solve runs the checked solver on c. A non-nil e decodes a SAT assignment
@@ -293,10 +487,10 @@ func solve(ctx context.Context, raw []byte, c sat.CNF, cfg cadical.Config, id st
 	}
 	result, err := r.Solve(ctx, id, c)
 	data := struct {
-		Result      cadical.Result `json:"result"`
-		QueryDigest digest.Digest  `json:"query_digest,omitempty"`
-		Trace       *finite.Trace  `json:"trace,omitempty"`
-	}{Result: result, QueryDigest: queryDigest}
+		Result      resultOutput  `json:"result"`
+		QueryDigest digest.Digest `json:"query_digest,omitempty"`
+		Trace       *traceOutput  `json:"trace,omitempty"`
+	}{Result: newResultOutput(result), QueryDigest: queryDigest}
 	if err == nil {
 		err = result.Require(sat.Requirements{SATModelChecked: true, UNSATProofChecked: true})
 	}
@@ -304,7 +498,8 @@ func solve(ctx context.Context, raw []byte, c sat.CNF, cfg cadical.Config, id st
 		var trace finite.Trace
 		trace, err = e.Decode(result.Assignment)
 		if err == nil {
-			data.Trace = &trace
+			out := traceOutput(trace)
+			data.Trace = &out
 		}
 	}
 	return data, err

@@ -3,8 +3,10 @@ package cli
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,11 +17,11 @@ import (
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
-func call(t *testing.T, args []string, raw string) (int, map[string]json.RawMessage) {
+func call(t *testing.T, args []string, raw string) (int, map[string]jsontext.Value) {
 	t.Helper()
 	var out, errout bytes.Buffer
 	status := Run(context.Background(), args, strings.NewReader(raw), &out, &errout)
-	var doc map[string]json.RawMessage
+	var doc map[string]jsontext.Value
 	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
 		t.Fatal(out.String(), errout.String(), err)
 	}
@@ -46,6 +48,26 @@ func TestProjectAndReconstructCLI(t *testing.T) {
 		}
 	}
 }
+func TestFailedCommandsReportEmptyData(t *testing.T) {
+	request := `{"model":{"fields":{"x":["a","b"]},"actions":[{"id":"ab","guard":{"x":"a"},"effect":{"x":"b"},"frame":[]}]},"query":{"profile":"categorical-simple-first-hit/v1","start":{"x":"a"},"goal":{"x":"b"},"horizon":1}}`
+	for _, test := range []struct {
+		command, input, want string
+	}{
+		{"project", `{"node_ids":["a","a"],"edges":[]}`, `{"node_ids":[],"edge_ids":[],"source":[],"target":[],"relation_masks":{}}`},
+		{"reconstruct", `{"node_ids":["a"],"edge_ids":["e"],"source":[[2]],"target":[[1]],"relation_masks":{"r":[1]}}`, `{"node_ids":[],"edges":[]}`},
+		{"decode", `{"request":` + request + `,"assignment":{}}`, `{"states":[],"actions":[]}`},
+	} {
+		status, doc := call(t, []string{test.command}, test.input)
+		if status != 1 || doc["error"] == nil {
+			t.Fatalf("%s: status %d, error %s", test.command, status, doc["error"])
+		}
+		got := doc["data"].Clone()
+		if err := got.Compact(); err != nil || string(got) != test.want {
+			t.Errorf("%s: data = %s, want %s", test.command, got, test.want)
+		}
+	}
+}
+
 func TestEncodeRequiresExplicitHorizonAndProfile(t *testing.T) {
 	raw := `{"model":{"fields":{"x":["a","b"]},"actions":[{"id":"ab","guard":{"x":"a"},"effect":{"x":"b"},"frame":[]}]},"query":{"profile":"categorical-simple-first-hit/v1","start":{"x":"a"},"goal":{"x":"b"},"horizon":1}}`
 	if status, _ := call(t, []string{"encode"}, raw); status != 0 {
@@ -54,6 +76,33 @@ func TestEncodeRequiresExplicitHorizonAndProfile(t *testing.T) {
 	for _, bad := range []string{strings.Replace(raw, `,"horizon":1`, "", 1), strings.Replace(raw, `"horizon":1`, `"horizon":null`, 1), strings.Replace(raw, `"horizon":1`, `"horizon":-1`, 1), strings.Replace(raw, `"x":"b"`, `"x":true`, 1), strings.Replace(raw, "categorical-simple-first-hit/v1", "all-walks", 1)} {
 		if status, _ := call(t, []string{"encode"}, bad); status == 0 {
 			t.Fatal(bad)
+		}
+	}
+}
+func TestEncodeOptions(t *testing.T) {
+	raw := `{"model":{"fields":{"x":["a","b"]},"actions":[{"id":"ab","guard":{"x":"a"},"effect":{"x":"b"},"frame":[]}]},"query":{"profile":"categorical-simple-first-hit/v1","start":{"x":"a"},"goal":{"x":"b"},"horizon":1}%s}`
+	for options, want := range map[string]string{
+		``:              "",
+		`,"options":{}`: "",
+		`,"options":{"max_variables":0,"max_clauses":0}`: "",
+		`,"options":{"max_variables":1}`:                 "LIMIT",
+		`,"options":{"max_clauses":1}`:                   "LIMIT",
+		`,"options":{"max_variables":-1}`:                "INPUT_OR_EXECUTION",
+		`,"options":{"max_clauses":-5}`:                  "INPUT_OR_EXECUTION",
+		`,"options":{"max_literals":1}`:                  "INPUT_OR_EXECUTION",
+	} {
+		status, doc := call(t, []string{"encode"}, fmt.Sprintf(raw, options))
+		if want == "" {
+			if status != 0 {
+				t.Errorf("%s: status %d, error %s", options, status, doc["error"])
+			}
+			continue
+		}
+		var failure struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(doc["error"], &failure); err != nil || status == 0 || failure.Code != want {
+			t.Errorf("%s: status %d, error %s, want code %s", options, status, doc["error"], want)
 		}
 	}
 }
@@ -124,7 +173,7 @@ func TestInconclusiveCommandsRetainDiagnosticResults(t *testing.T) {
 				t.Fatalf("unexpected error: %+v", gotError)
 			}
 			var data struct {
-				Result sat.Result `json:"result"`
+				Result resultOutput `json:"result"`
 			}
 			if err := json.Unmarshal(doc["data"], &data); err != nil {
 				t.Fatal(err)

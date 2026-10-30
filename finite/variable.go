@@ -30,13 +30,13 @@ type ActionID string
 // do not apply to Kind must be absent; applicable fields must name model members.
 // Validate checks this contract against a model and exact query horizon.
 type Variable struct {
-	ID        int          `json:"id"`
-	Kind      VariableKind `json:"kind"`
-	Time      int          `json:"time"`
-	OtherTime *int         `json:"other_time,omitempty"`
-	Field     FieldName    `json:"field,omitempty"`
-	Value     Category     `json:"value,omitempty"`
-	Action    ActionID     `json:"action,omitempty"`
+	ID        int
+	Kind      VariableKind
+	Time      int
+	OtherTime *int
+	Field     FieldName
+	Value     Category
+	Action    ActionID
 }
 
 // Validate checks role-specific presence, model membership and time bounds.

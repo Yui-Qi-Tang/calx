@@ -2,16 +2,17 @@ package finite
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
 type compiler struct {
 	ctx         context.Context
-	limit       Options
+	limit       budget
 	scope       variableScope
 	cnf         sat.CNF
 	mapping     []Variable
@@ -21,20 +22,21 @@ type compiler struct {
 	fieldCells  map[string][]int
 	cells       map[Coordinate]int
 	actionIndex map[string]int
+	quoted      map[string][]byte // JSON form of names, which repeat at every time
 }
 
 func (b *compiler) variable(v Variable) (int, error) {
 	if err := b.ctx.Err(); err != nil {
 		return 0, err
 	}
-	if len(b.cnf.Variables) >= b.limit.MaxVariables {
+	if len(b.cnf.Variables) >= b.limit.variables {
 		return 0, ErrEncodingLimit
 	}
 	v.ID = len(b.cnf.Variables) + 1
 	if err := b.scope.check(v); err != nil {
 		return 0, err
 	}
-	raw, err := json.Marshal(v)
+	raw, err := b.metadata(v)
 	if err != nil {
 		return 0, fmt.Errorf("encoding variable metadata: %w", err)
 	}
@@ -45,11 +47,59 @@ func (b *compiler) variable(v Variable) (int, error) {
 	return v.ID, nil
 }
 
+// metadata returns v as sat.Variable.Metadata["finite_variable"]: a JSON
+// object with keys id, kind, time, other_time (only when set), field, value
+// and action (each only when nonempty), escaped as jsoncompat does. Names are
+// quoted once and reused; marshaling every variable was half of Compile's time.
+func (b *compiler) metadata(v Variable) ([]byte, error) {
+	buf := make([]byte, 0, 96)
+	buf = append(buf, `{"id":`...)
+	buf = strconv.AppendInt(buf, int64(v.ID), 10)
+	buf = append(buf, `,"kind":`...)
+	buf, err := b.appendQuoted(buf, string(v.Kind))
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, `,"time":`...)
+	buf = strconv.AppendInt(buf, int64(v.Time), 10)
+	if v.OtherTime != nil {
+		buf = append(buf, `,"other_time":`...)
+		buf = strconv.AppendInt(buf, int64(*v.OtherTime), 10)
+	}
+	for _, f := range [...]struct{ key, value string }{
+		{`,"field":`, string(v.Field)}, {`,"value":`, string(v.Value)}, {`,"action":`, string(v.Action)},
+	} {
+		if f.value == "" {
+			continue
+		}
+		buf = append(buf, f.key...)
+		if buf, err = b.appendQuoted(buf, f.value); err != nil {
+			return nil, err
+		}
+	}
+	return append(buf, '}'), nil
+}
+
+func (b *compiler) appendQuoted(buf []byte, s string) ([]byte, error) {
+	q, ok := b.quoted[s]
+	if !ok {
+		var err error
+		if q, err = jsoncompat.Marshal(s); err != nil {
+			return nil, err
+		}
+		if b.quoted == nil {
+			b.quoted = map[string][]byte{}
+		}
+		b.quoted[s] = q
+	}
+	return append(buf, q...), nil
+}
+
 func (b *compiler) add(literals ...int) error {
 	if err := b.ctx.Err(); err != nil {
 		return err
 	}
-	if len(b.cnf.Clauses) >= b.limit.MaxClauses {
+	if len(b.cnf.Clauses) >= b.limit.clauses {
 		return ErrEncodingLimit
 	}
 	for _, literal := range literals {
@@ -151,6 +201,7 @@ func (b *compiler) encodeStates(forbidden []State) error {
 
 func (b *compiler) encodeTransitions(goal State) error {
 	for time := range b.actions {
+		b.actions[time] = make([]int, 0, len(b.matrix.ActionIDs))
 		for _, action := range b.matrix.ActionIDs {
 			id, err := b.variable(Variable{Kind: ActionVariable, Time: time, Action: ActionID(action)})
 			if err != nil {
@@ -206,7 +257,7 @@ func (b *compiler) encodeAction(time, action, selected int) error {
 func (b *compiler) encodeDistinctStates() error {
 	for left := range b.states {
 		for right := left + 1; right < len(b.states); right++ {
-			var different []int
+			different := make([]int, 0, len(b.matrix.Fields))
 			for _, field := range b.matrix.Fields {
 				other := right
 				id, err := b.variable(Variable{Kind: DifferenceVariable, Time: left, OtherTime: &other, Field: FieldName(field)})

@@ -19,17 +19,17 @@ var ErrLimit = errors.New("incidence limit exceeded")
 
 // Edge is an independently identified directed edge with an opaque relation.
 type Edge struct {
-	ID       string `json:"id"`
-	From     string `json:"from"`
-	To       string `json:"to"`
-	Relation string `json:"relation"`
+	ID       string
+	From     string
+	To       string
+	Relation string
 }
 
 // Graph contains topology only. IDs and relation labels must be nonempty.
 // Parallel edges and self-loops are allowed; duplicate IDs are rejected.
 type Graph struct {
-	NodeIDs []string `json:"node_ids"`
-	Edges   []Edge   `json:"edges"`
+	NodeIDs []string
+	Edges   []Edge
 }
 
 // Limits bounds allocations. Zero fields use conservative defaults.
@@ -69,11 +69,11 @@ func (l Limits) check(n, e, r int) error {
 // preserve self-loops and parallel-edge identity. Axes are sorted by ID.
 // Numeric matrices alone do not preserve labels, IDs or application records.
 type Projection struct {
-	NodeIDs       []string         `json:"node_ids"`
-	EdgeIDs       []string         `json:"edge_ids"`
-	Source        [][]int          `json:"source"`
-	Target        [][]int          `json:"target"`
-	RelationMasks map[string][]int `json:"relation_masks"`
+	NodeIDs       []string
+	EdgeIDs       []string
+	Source        [][]int
+	Target        [][]int
+	RelationMasks map[string][]int
 }
 
 // Project validates and copies topology into deterministic matrices. Inputs
