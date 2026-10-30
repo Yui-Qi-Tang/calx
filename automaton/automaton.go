@@ -1,6 +1,7 @@
 // Package automaton encodes bounded runs of synchronous Boolean automata as
-// CNF. Callers supply the automaton through System; Calx sees only cell and bit
-// indices and the local rule, never what a cell or bit means. It does not
+// CNF, simulates them forward with Simulate, and checks recorded runs with
+// Replay. Callers supply the automaton through System; Calx sees only cell and
+// bit indices and the local rule, never what a cell or bit means. It does not
 // prove unbounded properties or replace validation of the rule itself.
 package automaton
 
@@ -30,34 +31,38 @@ const (
 	maxCells = 1 << 20
 	maxBits  = 16
 	maxFanIn = 12
-	maxSteps = 4095
 )
 
 // Bit addresses one state bit of one cell.
 type Bit struct {
-	Cell  int `json:"cell"`
-	Index int `json:"index"`
+	Cell  int
+	Index int
 }
 
-// System is a synchronous Boolean automaton supplied by the caller. Every cell
-// reads the previous state of its inputs and writes its own next state at once.
-//
-// Inputs must return distinct bits and the same answer for a cell throughout
-// one call into this package. Next must be deterministic; it may be called many
-// times and in any order, but never concurrently. Next receives the input
-// values in Inputs order, followed by any choice bits, and out has Bits()
-// entries that are all false on entry. Panics in caller code are not recovered.
+// System is a synchronous Boolean automaton: all cells update at once, each
+// from the previous state of its inputs. Methods are never called
+// concurrently, and panics in them are not recovered.
 type System interface {
+	// Cells returns the number of cells, from 1 to 1,048,576.
 	Cells() int
+	// Bits returns the number of state bits per cell, from 1 to 16.
 	Bits() int
+	// Inputs returns the distinct bits that determine cell's next state. It
+	// must return the same bits for a cell throughout one call into this
+	// package. Inputs plus choice bits are at most 12 per cell.
 	Inputs(cell int) []Bit
+	// Next writes cell's next state to out, which has Bits() entries, all false
+	// on entry. in holds the input values in Inputs order, followed by any
+	// choice bits. Next must be deterministic; it may be called many times
+	// and in any order.
 	Next(cell int, in, out []bool)
 }
 
-// Chooser is an optional System extension for nondeterministic rules. A cell
-// with choice bits receives them after its inputs; each choice is a free
-// variable in the encoding. Inputs plus choices are at most 12 per cell.
+// Chooser is an optional System extension for nondeterministic rules. Each
+// choice bit is a free variable in the encoding.
 type Chooser interface {
+	// Choices returns the number of choice bits cell receives after its
+	// inputs, at least 0. Inputs plus choices are at most 12 per cell.
 	Choices(cell int) int
 }
 
@@ -71,9 +76,13 @@ type Pattern map[Bit]bool
 // holding every cell's choice bits in cell order; each entry is empty for
 // systems without choices.
 type Trajectory struct {
-	States  []State  `json:"states"`
-	Choices [][]bool `json:"choices"`
+	States  []State
+	Choices [][]bool
 }
+
+// IsZero reports whether t has no states and no choices. A decoded trajectory
+// is never zero: it holds at least the start state.
+func (t Trajectory) IsZero() bool { return len(t.States) == 0 && len(t.Choices) == 0 }
 
 // shape is the validated structure of a System, read once per call.
 type shape struct {
@@ -161,22 +170,23 @@ func (s shape) step(sys System, cur State, choice func(c int) ([]bool, error)) (
 	return next, nil
 }
 
-// Simulate runs sys forward from start for 0-4095 steps and returns steps+1
-// states. choose supplies each cell's choice bits; it may be nil when the
-// system has none.
+// Simulate runs sys forward from start for steps steps and returns all
+// steps+1 states, so memory grows with steps. choose supplies each cell's
+// choice bits; it may be nil when the system has none. A start of the wrong
+// length, negative steps, or missing or wrongly sized choices return ErrInput. sys is validated as in Compile, so
+// more than 1,048,576 cells return ErrEncodingLimit.
 func Simulate(sys System, start State, steps int, choose func(step, cell int) []bool) ([]State, error) {
 	s, err := readShape(sys)
 	if err != nil {
 		return nil, err
 	}
-	if steps < 0 || steps > maxSteps || len(start) != s.cells*s.bits {
+	if steps < 0 || len(start) != s.cells*s.bits {
 		return nil, fmt.Errorf("%w: start state or steps", ErrInput)
 	}
 	if s.totalChoices > 0 && choose == nil {
 		return nil, fmt.Errorf("%w: choices required", ErrInput)
 	}
-	states := make([]State, 1, steps+1)
-	states[0] = slices.Clone(start)
+	states := []State{slices.Clone(start)}
 	for t := range steps {
 		next, err := s.step(sys, states[t], func(c int) ([]bool, error) { return choose(t, c), nil })
 		if err != nil {

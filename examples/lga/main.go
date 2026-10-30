@@ -5,7 +5,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"log"
@@ -68,7 +69,7 @@ func simulate() error {
 	if err != nil {
 		return err
 	}
-	return json.NewEncoder(os.Stdout).Encode(struct {
+	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), struct {
 		Mass      [2]int      `json:"mass"`
 		MomentumX [2]int      `json:"momentum_x"`
 		Density   [][]float64 `json:"density"`
@@ -126,13 +127,13 @@ func runCheck(ctx context.Context, artifacts string) error {
 	if broken == sat.SAT {
 		out.Counterexample = []int{value(h.Mass(), run.States[0]), value(h.Mass(), run.States[len(run.States)-1])}
 	}
-	return json.NewEncoder(os.Stdout).Encode(out)
+	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), out)
 }
 
 // solve compiles a query, runs the checked solver, requires the evidence for
 // the answer, and decodes and replays a SAT trajectory.
 func solve(ctx context.Context, r *cadical.Runner, id string, sys automaton.System, q automaton.Query) (sat.Status, automaton.Trajectory, error) {
-	encoding, err := automaton.Compile(ctx, sys, q, automaton.Options{})
+	encoding, err := automaton.Compile(ctx, sys, q)
 	if err != nil {
 		return "", automaton.Trajectory{}, err
 	}

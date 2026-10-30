@@ -185,7 +185,7 @@ func TestViolationOracle(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			e, err := Compile(context.Background(), tc.sys, tc.q, Options{})
+			e, err := Compile(context.Background(), tc.sys, tc.q)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -210,7 +210,7 @@ func TestViolationOracle(t *testing.T) {
 						}
 					}
 					run := oracleRun(tc.sys, start, choices)
-					want := oracleAccepts(tc.sys, tc.q, run) &&
+					want := oracleMeets(tc.q, run, l.bits) &&
 						quantityValue(tc.q.Violates, run.States[0], l.bits) != quantityValue(tc.q.Violates, run.States[l.steps], l.bits)
 					fixed := map[int]bool{}
 					for time, s := range run.States {
@@ -257,11 +257,13 @@ func TestEncodingSizeMatchesFormula(t *testing.T) {
 		}{shift{cells: 9, broken: -1}, Query{Steps: 2, Violates: mass(9)[:m]}})
 	}
 	for _, tc := range cases {
-		e, err := Compile(context.Background(), tc.sys, tc.q, Options{})
+		e, err := Compile(context.Background(), tc.sys, tc.q)
 		if err != nil {
 			t.Fatal(err)
 		}
-		variables, clauses, literals := encodingSize(e.layout, tc.q)
+		fixed, perStep := encodingSize(e.layout, tc.q)
+		steps := int64(tc.q.Steps)
+		variables, clauses, literals := fixed.variables+steps*perStep.variables, fixed.clauses+steps*perStep.clauses, fixed.literals+steps*perStep.literals
 		gotLiterals := 0
 		for _, clause := range e.formula.Clauses {
 			gotLiterals += len(clause)
@@ -282,25 +284,16 @@ func TestQuantityValidation(t *testing.T) {
 		"bit index":    {{Bit: Bit{Cell: 0, Index: 1}, Weight: 1}},
 		"duplicate":    {{Bit: Bit{Cell: 1}, Weight: 1}, {Bit: Bit{Cell: 1}, Weight: -1}},
 	} {
-		if _, err := Compile(context.Background(), sys, Query{Steps: 1, Violates: q}, Options{}); !errors.Is(err, ErrInput) {
+		if _, err := Compile(context.Background(), sys, Query{Steps: 1, Violates: q}); !errors.Is(err, ErrInput) {
 			t.Errorf("%s: got %v, want ErrInput", name, err)
 		}
-	}
-}
-
-func TestViolationBudget(t *testing.T) {
-	q := Query{Steps: 1, Violates: mass(8)}
-	l := layout{shape: shape{cells: 8, bits: 1, inputs: make([][]Bit, 8), choices: make([]int, 8), offsets: make([]int, 8)}, steps: 1}
-	_, clauses, _ := encodingSize(l, q)
-	if _, err := Compile(context.Background(), shift{cells: 8, broken: -1}, q, Options{MaxClauses: int(clauses) + 8 - 1}); !errors.Is(err, sat.ErrLimit) {
-		t.Fatalf("got %v, want limit", err)
 	}
 }
 
 func TestDigestIdentifiesQuantity(t *testing.T) {
 	digestOf := func(q Quantity) string {
 		t.Helper()
-		e, err := Compile(context.Background(), elementary{cells: 3, rule: 90}, Query{Steps: 1, Violates: q}, Options{})
+		e, err := Compile(context.Background(), elementary{cells: 3, rule: 90}, Query{Steps: 1, Violates: q})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -133,9 +133,8 @@ func (p *packed) bounceWalls(arrived [][]uint64, k int, collided []uint64) {
 }
 
 // Run advances an HPP state by steps with a bit-packed implementation and
-// returns the final state. For 0-4095 steps it gives the same result as
-// automaton.Simulate on h, typically much faster; it also accepts longer runs,
-// which Simulate rejects.
+// returns the final state. It gives the same result as automaton.Simulate on
+// h, typically much faster, and keeps only the current state in memory.
 func (h HPP) Run(start automaton.State, steps int) (automaton.State, error) {
 	p, err := pack(h.geometry(), start)
 	if err != nil {
@@ -165,8 +164,8 @@ func (h HPP) Run(start automaton.State, steps int) (automaton.State, error) {
 // Run advances an FHP state by steps with a bit-packed implementation and
 // returns the final state. choose supplies the choice bit of every fluid cell
 // at every step, as Simulate's choose does; it is not called for wall cells.
-// For 0-4095 steps it gives the same result as automaton.Simulate with the
-// same choices; it also accepts longer runs, which Simulate rejects.
+// It gives the same result as automaton.Simulate with the same choices, and
+// keeps only the current state in memory.
 func (f FHP) Run(start automaton.State, steps int, choose func(step, cell int) bool) (automaton.State, error) {
 	g := f.geometry()
 	p, err := pack(g, start)

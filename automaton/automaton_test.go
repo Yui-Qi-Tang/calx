@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"testing"
 
@@ -85,9 +86,9 @@ func oracleMatches(s State, p Pattern, bits int) bool {
 	return true
 }
 
-func oracleAccepts(sys System, q Query, t Trajectory) bool {
-	bits := sys.Bits()
-	if !oracleFollows(sys, t) || !oracleMatches(t.States[0], q.Start, bits) || !oracleMatches(t.States[q.Steps], q.Goal, bits) {
+// oracleMeets reports whether t meets the start, goal and forbidden patterns of q.
+func oracleMeets(q Query, t Trajectory, bits int) bool {
+	if !oracleMatches(t.States[0], q.Start, bits) || !oracleMatches(t.States[q.Steps], q.Goal, bits) {
 		return false
 	}
 	for _, s := range t.States {
@@ -118,7 +119,7 @@ func TestExhaustiveOracle(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			e, err := Compile(context.Background(), tc.sys, tc.q, Options{})
+			e, err := Compile(context.Background(), tc.sys, tc.q)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,7 +139,7 @@ func TestExhaustiveOracle(t *testing.T) {
 				}
 				run := e.layout.trajectory(values)
 				got := cnf.CheckAssignment(values) == nil
-				if want := oracleAccepts(tc.sys, tc.q, run); got != want {
+				if want := oracleFollows(tc.sys, run) && oracleMeets(tc.q, run, tc.sys.Bits()); got != want {
 					t.Fatalf("assignment %b: formula %v, oracle %v", mask, got, want)
 				}
 				if !got {
@@ -219,14 +220,13 @@ func TestCompileRejectsInvalidInput(t *testing.T) {
 			return in
 		}}, Query{}, ErrInput},
 		{"negative steps", elementary{cells: 3, rule: 90}, Query{Steps: -1}, ErrInput},
-		{"too many steps", elementary{cells: 3, rule: 90}, Query{Steps: maxSteps + 1}, ErrInput},
 		{"start out of range", elementary{cells: 3, rule: 90}, Query{Start: Pattern{{Cell: 3}: true}}, ErrInput},
 		{"goal bit index", elementary{cells: 3, rule: 90}, Query{Goal: Pattern{{Cell: 0, Index: 1}: true}}, ErrInput},
 		{"empty forbidden", elementary{cells: 3, rule: 90}, Query{Forbidden: []Pattern{{}}}, ErrInput},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Compile(context.Background(), tc.sys, tc.q, Options{}); !errors.Is(err, tc.want) {
+			if _, err := Compile(context.Background(), tc.sys, tc.q); !errors.Is(err, tc.want) {
 				t.Fatalf("got %v, want %v", err, tc.want)
 			}
 		})
@@ -246,17 +246,17 @@ func (c counting) Next(cell int, in, out []bool) {
 
 func TestBudgetIsCheckedBeforeRuleEvaluation(t *testing.T) {
 	calls := 0
-	sys := counting{elementary: elementary{cells: 8, rule: 30}, calls: &calls}
-	for _, opts := range []Options{{MaxVariables: 8}, {MaxClauses: 63}, {MaxLiterals: 255}} {
-		if _, err := Compile(context.Background(), sys, Query{Steps: 1}, opts); !errors.Is(err, sat.ErrLimit) {
-			t.Fatalf("%+v: got %v, want limit", opts, err)
+	sys := counting{cells: 8, rule: 30, calls: &calls}
+	for name, opt := range map[string]Option{"variables": WithMaxVariables(15), "clauses": WithMaxClauses(63), "literals": WithMaxLiterals(255)} {
+		if _, err := Compile(context.Background(), sys, Query{Steps: 1}, opt); !errors.Is(err, sat.ErrLimit) {
+			t.Fatalf("%s: got %v, want limit", name, err)
 		}
 	}
 	if calls != 0 {
 		t.Fatalf("rule evaluated %d times before the budget check", calls)
 	}
 	// Exactly at budget: 16 variables, 8 cells * 8 rows = 64 clauses of 4 literals.
-	if _, err := Compile(context.Background(), sys, Query{Steps: 1}, Options{MaxVariables: 16, MaxClauses: 64, MaxLiterals: 256}); err != nil {
+	if _, err := Compile(context.Background(), sys, Query{Steps: 1}, WithMaxVariables(16), WithMaxClauses(64), WithMaxLiterals(256)); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 8*8 {
@@ -267,15 +267,79 @@ func TestBudgetIsCheckedBeforeRuleEvaluation(t *testing.T) {
 func TestCompileHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := Compile(ctx, elementary{cells: 3, rule: 90}, Query{Steps: 1}, Options{}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("got %v, want context.Canceled", err)
+	// A canceled context is reported before any validation.
+	if _, err := Compile(ctx, elementary{cells: 3, rule: 90}, Query{Steps: -1}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("invalid query: got %v, want context.Canceled", err)
+	}
+}
+
+// cancelling cancels its context on the at-th rule evaluation.
+type cancelling struct {
+	counting
+	at     int
+	cancel context.CancelFunc
+}
+
+func (c cancelling) Next(cell int, in, out []bool) {
+	c.counting.Next(cell, in, out)
+	if *c.calls == c.at {
+		c.cancel()
+	}
+}
+
+func TestCompileStopsWhenCanceledMidway(t *testing.T) {
+	const cells, rows = 8, 8 // rule 30 reads three bits: 8 rows per cell
+	for name, tc := range map[string]struct {
+		at, maxCalls int
+	}{
+		"while building rule tables": {at: 1, maxCalls: rows},                    // stops before the next cell
+		"while encoding clauses":     {at: cells * rows, maxCalls: cells * rows}, // tables done, encoding stops
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			sys := cancelling{counting: counting{cells: cells, rule: 30, calls: &calls}, at: tc.at, cancel: cancel}
+			if _, err := Compile(ctx, sys, Query{Steps: 1}); !errors.Is(err, context.Canceled) {
+				t.Fatalf("got %v, want context.Canceled", err)
+			}
+			if calls > tc.maxCalls {
+				t.Fatalf("rule evaluated %d times after cancellation, want at most %d", calls, tc.maxCalls)
+			}
+		})
+	}
+}
+
+func TestBudgetOptions(t *testing.T) {
+	b, err := newBudget(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := sat.Limits{}.WithDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.variables != int64(l.MaxVariables) || b.clauses != int64(l.MaxClauses) || b.literals != int64(l.MaxLiterals) {
+		t.Fatalf("defaults %+v differ from sat.Limits defaults %+v", b, l)
+	}
+	if b, err = newBudget([]Option{WithMaxClauses(5), WithMaxClauses(7)}); err != nil || b.clauses != 7 {
+		t.Fatalf("later option must win: %+v %v", b, err)
+	}
+	for name, opts := range map[string][]Option{
+		"zero variables":   {WithMaxVariables(0)},
+		"negative clauses": {WithMaxClauses(-1)},
+		"zero literals":    {WithMaxLiterals(0)},
+	} {
+		if _, err := Compile(context.Background(), elementary{cells: 3, rule: 90}, Query{Steps: 1}, opts...); !errors.Is(err, ErrInput) {
+			t.Errorf("%s: got %v, want ErrInput", name, err)
+		}
 	}
 }
 
 func TestDigestIdentifiesTablesAndQuery(t *testing.T) {
 	digestOf := func(sys System, q Query) string {
 		t.Helper()
-		e, err := Compile(context.Background(), sys, q, Options{})
+		e, err := Compile(context.Background(), sys, q)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -315,7 +379,7 @@ func TestUninitializedEncoding(t *testing.T) {
 }
 
 func TestCNFIsIndependentCopy(t *testing.T) {
-	e, err := Compile(context.Background(), elementary{cells: 3, rule: 90}, Query{Steps: 1}, Options{})
+	e, err := Compile(context.Background(), elementary{cells: 3, rule: 90}, Query{Steps: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +427,7 @@ func ExampleCompile() {
 		Start: Pattern{{Cell: 0}: true, {Cell: 1}: false, {Cell: 2}: false, {Cell: 3}: false},
 		Goal:  Pattern{{Cell: 0}: false, {Cell: 1}: false, {Cell: 2}: false, {Cell: 3}: false},
 	}
-	e, err := Compile(context.Background(), sys, q, Options{})
+	e, err := Compile(context.Background(), sys, q)
 	if err != nil {
 		panic(err)
 	}
@@ -375,4 +439,36 @@ func ExampleCompile() {
 		panic(err)
 	}
 	// Output: 12 variables, 72 clauses
+}
+
+func TestTrajectoryIsZero(t *testing.T) {
+	if !(Trajectory{}).IsZero() {
+		t.Fatal("zero Trajectory must report IsZero")
+	}
+	states, err := Simulate(elementary{cells: 3, rule: 90}, State{true, false, false}, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if (Trajectory{States: states}).IsZero() || (Trajectory{Choices: [][]bool{{}}}).IsZero() {
+		t.Fatal("non-zero Trajectory reported zero")
+	}
+}
+
+func TestStepsAreBoundedOnlyByBudget(t *testing.T) {
+	sys := elementary{cells: 3, rule: 90}
+	// 5,000 steps: 15,003 variables and 120,000 clauses fit the default budget.
+	if _, err := Compile(context.Background(), sys, Query{Steps: 5000}); err != nil {
+		t.Fatal(err)
+	}
+	states, err := Simulate(sys, State{true, false, false}, 5000, nil)
+	if err != nil || len(states) != 5001 {
+		t.Fatalf("%d states, %v", len(states), err)
+	}
+	// Huge step counts must fail the budget check, not overflow it.
+	unlimited := []Option{WithMaxVariables(math.MaxInt), WithMaxClauses(math.MaxInt), WithMaxLiterals(math.MaxInt)}
+	for name, opts := range map[string][]Option{"default budget": nil, "maximal budget": unlimited} {
+		if _, err := Compile(context.Background(), sys, Query{Steps: math.MaxInt}, opts...); !errors.Is(err, ErrEncodingLimit) {
+			t.Errorf("%s: got %v, want ErrEncodingLimit", name, err)
+		}
+	}
 }

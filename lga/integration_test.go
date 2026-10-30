@@ -36,7 +36,7 @@ func realRunner(t *testing.T, name string) *cadical.Runner {
 // returned answer. A SAT trajectory is decoded and replayed through sys.
 func solve(t *testing.T, r *cadical.Runner, id string, sys automaton.System, q automaton.Query) (sat.Status, automaton.Trajectory) {
 	t.Helper()
-	e, err := automaton.Compile(context.Background(), sys, q, automaton.Options{})
+	e, err := automaton.Compile(context.Background(), sys, q)
 	if err != nil {
 		t.Fatal(err)
 	}

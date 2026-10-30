@@ -224,7 +224,7 @@ func TestQuantityShapes(t *testing.T) {
 		"row -1": h.RowMomentumX(-1), "row 2": h.RowMomentumX(2),
 		"column -1": h.ColumnMomentumY(-1), "column 3": h.ColumnMomentumY(3),
 	} {
-		if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 1, Violates: q}, automaton.Options{}); !errors.Is(err, automaton.ErrInput) {
+		if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 1, Violates: q}); !errors.Is(err, automaton.ErrInput) {
 			t.Errorf("%s: got %v, want automaton.ErrInput", name, err)
 		}
 	}
@@ -274,10 +274,10 @@ func TestDefaultBudgetSteps(t *testing.T) {
 		t.Skip("allocates a full-size encoding")
 	}
 	h := HPP{Width: 32, Height: 32}
-	if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 12}, automaton.Options{}); err != nil {
+	if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 12}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 13}, automaton.Options{}); !errors.Is(err, sat.ErrLimit) {
+	if _, err := automaton.Compile(context.Background(), h, automaton.Query{Steps: 13}); !errors.Is(err, sat.ErrLimit) {
 		t.Fatalf("got %v, want limit", err)
 	}
 }

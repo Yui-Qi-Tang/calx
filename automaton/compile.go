@@ -2,17 +2,18 @@ package automaton
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
-// Query binds one exact-length run. Start constrains the state at time zero,
-// Goal the state at time Steps, and no state at any time may match a Forbidden
+// Query binds one exact-length run of Steps steps, at least 0; the encoding
+// budget bounds how many fit. Start constrains the state at time zero, Goal
+// the state at time Steps, and no state at any time may match a Forbidden
 // pattern. A nonempty Violates additionally requires that quantity to differ
 // between times zero and Steps; UNSAT then is a conservation proof bounded to
 // this system, length and set of patterns.
@@ -24,12 +25,60 @@ type Query struct {
 	Violates  Quantity
 }
 
-// Options bounds encoding work. Zero fields use the sat.Limits defaults. The
-// budget is checked before any rule table is evaluated.
-type Options struct {
-	MaxVariables int
-	MaxClauses   int
-	MaxLiterals  int
+// Option changes the encoding budget of Compile and reports an invalid value.
+// The budget is checked before any rule table is evaluated; exceeding it
+// returns ErrEncodingLimit.
+type Option func(*budget) error
+
+// WithMaxVariables caps the number of CNF variables (default 100,000). n must
+// be at least 1.
+func WithMaxVariables(n int) Option {
+	return func(b *budget) error {
+		if n < 1 {
+			return fmt.Errorf("%w: max variables %d, want at least 1", ErrInput, n)
+		}
+		b.variables = int64(n)
+		return nil
+	}
+}
+
+// WithMaxClauses caps the number of CNF clauses (default 1,000,000). n must be
+// at least 1.
+func WithMaxClauses(n int) Option {
+	return func(b *budget) error {
+		if n < 1 {
+			return fmt.Errorf("%w: max clauses %d, want at least 1", ErrInput, n)
+		}
+		b.clauses = int64(n)
+		return nil
+	}
+}
+
+// WithMaxLiterals caps the total number of literals over all clauses
+// (default 4,000,000). n must be at least 1.
+func WithMaxLiterals(n int) Option {
+	return func(b *budget) error {
+		if n < 1 {
+			return fmt.Errorf("%w: max literals %d, want at least 1", ErrInput, n)
+		}
+		b.literals = int64(n)
+		return nil
+	}
+}
+
+// budget bounds encoding work. Its defaults equal the sat.Limits defaults.
+type budget struct {
+	variables, clauses, literals int64
+}
+
+func newBudget(opts []Option) (budget, error) {
+	b := budget{variables: 100_000, clauses: 1_000_000, literals: 4_000_000}
+	for _, opt := range opts {
+		if err := opt(&b); err != nil {
+			return budget{}, err
+		}
+	}
+	return b, nil
 }
 
 // Encoding owns a compiled formula and the layout needed to decode it.
@@ -57,15 +106,17 @@ func (l layout) variables() int { return (l.steps+1)*l.cells*l.bits + l.steps*l.
 
 // Compile validates and encodes one query without invoking a solver. Each
 // cell's rule is evaluated once per input row and cached for all steps.
-func Compile(ctx context.Context, sys System, q Query, opts Options) (*Encoding, error) {
+// Invalid systems, queries or options return ErrInput, an exceeded budget
+// returns ErrEncodingLimit, and a canceled ctx returns its error.
+func Compile(ctx context.Context, sys System, q Query, opts ...Option) (*Encoding, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	limits, err := (sat.Limits{MaxVariables: opts.MaxVariables, MaxClauses: opts.MaxClauses, MaxLiterals: opts.MaxLiterals}).WithDefaults()
+	limits, err := newBudget(opts)
 	if err != nil {
 		return nil, err
 	}
-	if q.Steps < 0 || q.Steps > maxSteps {
+	if q.Steps < 0 {
 		return nil, fmt.Errorf("%w: steps", ErrInput)
 	}
 	s, err := readShape(sys)
@@ -115,32 +166,50 @@ func (q Query) validate(s shape) error {
 	return s.checkQuantity(q.Violates)
 }
 
-func checkBudget(l layout, q Query, limits sat.Limits) error {
-	variables, clauses, literals := encodingSize(l, q)
-	if variables > int64(limits.MaxVariables) || clauses > int64(limits.MaxClauses) || literals > int64(limits.MaxLiterals) {
+// counts holds variable, clause and literal numbers of (part of) a formula.
+type counts struct {
+	variables, clauses, literals int64
+}
+
+// checkBudget compares the formula size with the budget. Steps has no upper
+// bound, so it divides instead of multiplying to avoid overflow.
+func checkBudget(l layout, q Query, limits budget) error {
+	fixed, perStep := encodingSize(l, q)
+	steps := int64(l.steps)
+	if fixed.variables > limits.variables || steps > (limits.variables-fixed.variables)/perStep.variables ||
+		fixed.clauses > limits.clauses || steps > (limits.clauses-fixed.clauses)/perStep.clauses ||
+		fixed.literals > limits.literals || steps > (limits.literals-fixed.literals)/perStep.literals {
 		return ErrEncodingLimit
 	}
 	return nil
 }
 
-// encodingSize counts the formula encode would build, without building it.
-func encodingSize(l layout, q Query) (variables, clauses, literals int64) {
-	steps := int64(l.steps)
-	variables = int64(l.variables())
+// encodingSize counts the formula encode would build, without building it:
+// the total is fixed plus Steps times perStep. Every perStep count is at
+// least 1, because every cell has at least one bit.
+func encodingSize(l layout, q Query) (fixed, perStep counts) {
+	stateBits := int64(l.cells * l.bits)
+	fixed.variables = stateBits
+	perStep.variables = stateBits + int64(l.totalChoices)
 	for c := range l.cells {
 		fanIn := int64(len(l.inputs[c]) + l.choices[c])
-		rows := steps * int64(l.bits) << fanIn
-		clauses += rows
-		literals += rows * (fanIn + 1)
+		rows := int64(l.bits) << fanIn
+		perStep.clauses += rows
+		perStep.literals += rows * (fanIn + 1)
 	}
-	clauses += int64(len(q.Start) + len(q.Goal))
-	literals += int64(len(q.Start) + len(q.Goal))
-	for _, p := range q.Forbidden {
-		clauses += steps + 1
-		literals += (steps + 1) * int64(len(p))
+	fixed.clauses += int64(len(q.Start) + len(q.Goal))
+	fixed.literals += int64(len(q.Start) + len(q.Goal))
+	for _, p := range q.Forbidden { // excluded at every time, including time zero
+		fixed.clauses++
+		perStep.clauses++
+		fixed.literals += int64(len(p))
+		perStep.literals += int64(len(p))
 	}
 	v, c, lits := violationSize(len(q.Violates))
-	return variables + v, clauses + c, literals + lits
+	fixed.variables += v
+	fixed.clauses += c
+	fixed.literals += lits
+	return fixed, perStep
 }
 
 // ruleTable evaluates cell c over every input row. Bit k of row r is input k
@@ -242,15 +311,27 @@ func compareBits(a, b Bit) int {
 	return a.Index - b.Index
 }
 
+// bitJSON, termJSON and patternBit fix the JSON form of the identity, so the
+// digest does not depend on the public types.
+type bitJSON struct {
+	Cell  int `json:"cell"`
+	Index int `json:"index"`
+}
+
+type termJSON struct {
+	Bit    bitJSON `json:"bit"`
+	Weight int     `json:"weight"`
+}
+
 type patternBit struct {
-	Bit   Bit  `json:"bit"`
-	Value bool `json:"value"`
+	Bit   bitJSON `json:"bit"`
+	Value bool    `json:"value"`
 }
 
 func canonical(p Pattern) []patternBit {
 	out := make([]patternBit, 0, len(p))
 	for _, b := range sortedBits(p) {
-		out = append(out, patternBit{Bit: b, Value: p[b]})
+		out = append(out, patternBit{Bit: bitJSON(b), Value: p[b]})
 	}
 	return out
 }
@@ -269,25 +350,42 @@ func identity(l layout, tables [][]bool, q Query) (digest.Digest, error) {
 		}
 		rows[c] = string(row)
 	}
-	violates := slices.Clone(q.Violates)
-	slices.SortFunc(violates, func(a, b Term) int { return compareBits(a.Bit, b.Bit) })
+	// nil and empty slices stay distinct, as in earlier digests.
+	inputs := make([][]bitJSON, len(l.inputs))
+	for c, in := range l.inputs {
+		if in != nil {
+			inputs[c] = make([]bitJSON, len(in))
+			for i, b := range in {
+				inputs[c][i] = bitJSON(b)
+			}
+		}
+	}
+	var violates []termJSON
+	if q.Violates != nil {
+		sorted := slices.Clone(q.Violates)
+		slices.SortFunc(sorted, func(a, b Term) int { return compareBits(a.Bit, b.Bit) })
+		violates = make([]termJSON, len(sorted))
+		for i, t := range sorted {
+			violates[i] = termJSON{Bit: bitJSON(t.Bit), Weight: t.Weight}
+		}
+	}
 	forbidden := make([][]patternBit, len(q.Forbidden))
 	for i, p := range q.Forbidden {
 		forbidden[i] = canonical(p)
 	}
-	raw, err := json.Marshal(struct {
+	raw, err := jsoncompat.Marshal(struct {
 		Profile   string         `json:"profile"`
 		Cells     int            `json:"cells"`
 		Bits      int            `json:"bits"`
-		Inputs    [][]Bit        `json:"inputs"`
+		Inputs    [][]bitJSON    `json:"inputs"`
 		Choices   []int          `json:"choices"`
 		Tables    []string       `json:"tables"`
 		Steps     int            `json:"steps"`
 		Start     []patternBit   `json:"start"`
 		Goal      []patternBit   `json:"goal"`
 		Forbidden [][]patternBit `json:"forbidden"`
-		Violates  []Term         `json:"violates"`
-	}{Profile, l.cells, l.bits, l.inputs, l.choices, rows, l.steps, canonical(q.Start), canonical(q.Goal), forbidden, violates})
+		Violates  []termJSON     `json:"violates"`
+	}{Profile, l.cells, l.bits, inputs, l.choices, rows, l.steps, canonical(q.Start), canonical(q.Goal), forbidden, violates})
 	if err != nil {
 		return "", fmt.Errorf("encoding automaton identity: %w", err)
 	}

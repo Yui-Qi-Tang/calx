@@ -143,7 +143,7 @@ func TestFHPValidateAndQuantities(t *testing.T) {
 	if len(f.Mass()) != 36 || len(f.MomentumQ()) != 24 || len(f.MomentumR()) != 24 {
 		t.Fatal("quantity sizes")
 	}
-	if _, err := automaton.Compile(context.Background(), f, automaton.Query{Steps: 1, Violates: f.MomentumQ()}, automaton.Options{}); err != nil {
+	if _, err := automaton.Compile(context.Background(), f, automaton.Query{Steps: 1, Violates: f.MomentumQ()}); err != nil {
 		t.Fatal(err)
 	}
 }

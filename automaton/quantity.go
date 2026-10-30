@@ -8,8 +8,8 @@ import (
 
 // Term is one signed contribution to a conserved quantity.
 type Term struct {
-	Bit    Bit `json:"bit"`
-	Weight int `json:"weight"` // -1 or +1
+	Bit    Bit
+	Weight int // -1 or +1
 }
 
 // Quantity is a sum of signed bits, such as mass or one momentum component.
