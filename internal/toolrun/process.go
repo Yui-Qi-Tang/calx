@@ -1,10 +1,9 @@
 // Package toolrun contains process and artifact operations for the concrete
-// backends. Adapted from Pouch; see ../../NOTICE.
+// backends.
 package toolrun
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
@@ -60,8 +60,7 @@ func Execute(ctx context.Context, dir, stem, executable string, maxOutput int64,
 	record.Canceled = errors.Is(ctx.Err(), context.Canceled)
 	var processErr error
 	if runErr != nil {
-		var exit *exec.ExitError
-		if !errors.As(runErr, &exit) {
+		if _, ok := errors.AsType[*exec.ExitError](runErr); !ok {
 			processErr = fmt.Errorf("executing tool: %w", runErr)
 		}
 	}
@@ -105,7 +104,7 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 
 // WriteJSON creates a new JSON artifact and preserves write and close errors.
 func WriteJSON(path string, value any) error {
-	raw, err := json.MarshalIndent(value, "", "  ")
+	raw, err := jsoncompat.MarshalIndent(value)
 	if err != nil {
 		return fmt.Errorf("encoding evidence: %w", err)
 	}

@@ -5,7 +5,6 @@ package consumercheck
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
@@ -39,7 +39,7 @@ const (
 type Check struct {
 	Outcome Outcome `json:"outcome"`
 	Scope   string  `json:"scope"`
-	Cases   int     `json:"cases,omitempty"`
+	Cases   int     `json:"cases,omitzero"`
 }
 
 // Summary keeps partial results on failure.
@@ -171,7 +171,7 @@ func (s *session) checkSources() error {
 }
 
 func writeJSON(path string, value any) error {
-	raw, err := json.MarshalIndent(value, "", "  ")
+	raw, err := jsoncompat.MarshalIndent(value)
 	if err != nil {
 		return err
 	}

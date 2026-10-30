@@ -20,7 +20,7 @@ func CNF(n int, clauses [][]int) sat.CNF {
 func Cases() map[string]sat.CNF {
 	clauses := [][]int{{}, {1}, {-1}, {2}, {-2}, {1, 2}, {1, -2}, {-1, 2}, {-1, -2}}
 	out := map[string]sat.CNF{}
-	for mask := 0; mask < 512; mask++ {
+	for mask := range 512 {
 		c := CNF(2, nil)
 		for bit, clause := range clauses {
 			if mask&(1<<bit) != 0 {

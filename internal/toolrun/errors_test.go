@@ -2,7 +2,7 @@ package toolrun
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"os"
@@ -18,7 +18,7 @@ func TestIOAndSerializationErrorsRemainInspectable(t *testing.T) {
 	if _, err := readTool(filepath.Join(root, "missing"), digest.Digest(strings.Repeat("a", 64))); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("lost executable open error", err)
 	}
-	var unsupported *json.UnsupportedTypeError
+	var unsupported *json.SemanticError
 	if err := WriteJSON(filepath.Join(root, "invalid.json"), make(chan int)); !errors.As(err, &unsupported) {
 		t.Fatal("lost JSON error", err)
 	}

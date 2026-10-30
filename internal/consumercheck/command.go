@@ -3,7 +3,8 @@ package consumercheck
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -77,11 +78,11 @@ func (s *session) testGo(ctx context.Context, dir, kind string, expectedTests in
 		return err
 	}
 	s.checks[kind] = Check{Outcome: Failed, Scope: "selected native Go source boundary"}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder := jsontext.NewDecoder(bytes.NewReader(raw))
 	passed := 0
 	for {
 		var event struct{ Action, Test string }
-		if err := decoder.Decode(&event); err != nil {
+		if err := json.UnmarshalDecode(decoder, &event); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}

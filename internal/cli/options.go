@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/toolmanifest"
 	"github.com/Yui-Qi-Tang/calx/sat/cadical"
 )
 
@@ -68,9 +68,9 @@ func parseOptions(args []string, output io.Writer) (options, error) {
 	if solves {
 		fs.StringVar(&opts.toolsFile, "tools", "", "tool manifest `file` written by pin-tools; replaces --solver, --solver-digest, --checker and --checker-digest")
 		fs.StringVar(&opts.tools.SolverPath, "solver", "", "CaDiCaL executable `path`, not a shell command; required without --tools")
-		fs.Var(&opts.tools.SolverDigest, "solver-digest", "expected `digest` of solver executable bytes, required without --tools: "+digest.Format)
+		fs.Var(&opts.tools.SolverDigest, "solver-digest", "expected `digest` of solver executable bytes, required without --tools: SHA-256, 64 lowercase hex characters")
 		fs.StringVar(&opts.tools.CheckerPath, "checker", "", "DRAT-trim executable `path`, also used for runs that return SAT; required without --tools")
-		fs.Var(&opts.tools.CheckerDigest, "checker-digest", "expected `digest` of checker executable bytes, required without --tools: "+digest.Format)
+		fs.Var(&opts.tools.CheckerDigest, "checker-digest", "expected `digest` of checker executable bytes, required without --tools: SHA-256, 64 lowercase hex characters")
 		fs.StringVar(&opts.tools.ArtifactDir, "artifacts", "", "required new run `directory` for tool copies, inputs and checks; parent must exist")
 		fs.StringVar(&opts.id, "id", "query", "query subdirectory `name`: 1-80 ASCII letters, digits, _ or -; starts with a letter or digit")
 		fs.DurationVar(&opts.tools.Limits.Timeout, "timeout", 30*time.Second, "solve `duration` shared by solver and checker; excludes compilation and tool setup; 0 uses 30s")
@@ -97,7 +97,7 @@ func parseOptions(args []string, output io.Writer) (options, error) {
 					return opts, fmt.Errorf("--tools cannot be combined with --%s", f.name)
 				}
 			}
-			m, err := loadManifest(opts.toolsFile)
+			m, err := toolmanifest.Load(opts.toolsFile)
 			if err != nil {
 				return opts, err
 			}

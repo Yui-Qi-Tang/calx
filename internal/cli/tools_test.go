@@ -3,13 +3,14 @@ package cli
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/toolmanifest"
 )
 
 func pinned(t *testing.T, solver, checker string) string {
@@ -31,7 +32,7 @@ func TestPinToolsThenSolveWithManifest(t *testing.T) {
 	checker, checkerDigest := script(t, "exit 1")
 	manifest := pinned(t, solver, checker)
 
-	var m toolManifest
+	var m toolmanifest.Manifest
 	raw, err := os.ReadFile(manifest)
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +40,7 @@ func TestPinToolsThenSolveWithManifest(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	want := toolManifest{Schema: toolsSchema, Solver: toolPin{Path: solver, Digest: digest.Digest(solverDigest)}, Checker: toolPin{Path: checker, Digest: digest.Digest(checkerDigest)}}
+	want := toolmanifest.Manifest{Schema: toolmanifest.Schema, Solver: toolmanifest.Pin{Path: solver, Digest: digest.Digest(solverDigest)}, Checker: toolmanifest.Pin{Path: checker, Digest: digest.Digest(checkerDigest)}}
 	if m != want {
 		t.Fatalf("manifest %+v, want %+v", m, want)
 	}
@@ -56,7 +57,7 @@ func TestPinToolsRelativePathsBecomeAbsolute(t *testing.T) {
 	checker, _ := script(t, "exit 0")
 	t.Chdir(filepath.Dir(solver))
 	manifest := pinned(t, filepath.Base(solver), checker)
-	m, err := loadManifest(manifest)
+	m, err := toolmanifest.Load(manifest)
 	if err != nil {
 		t.Fatal(err)
 	}

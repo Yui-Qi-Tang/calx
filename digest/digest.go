@@ -11,8 +11,8 @@ import (
 	"io"
 )
 
-// Format describes the currently supported textual representation.
-const Format = "SHA-256, 64 lowercase hex characters"
+// format describes the currently supported textual representation.
+const format = "SHA-256, 64 lowercase hex characters"
 
 // ErrInvalid identifies an unsupported or malformed digest representation.
 var ErrInvalid = errors.New("invalid digest")
@@ -39,20 +39,20 @@ func Read(r io.Reader) (Digest, int64, error) {
 	return Digest(hex.EncodeToString(h.Sum(nil))), n, nil
 }
 
-// Parse accepts the current Format without a prefix or surrounding whitespace.
+// Parse accepts the current format without a prefix or surrounding whitespace.
 func Parse(text string) (Digest, error) {
 	if len(text)%2 != 0 {
 		return "", fmt.Errorf("%w: %w", ErrInvalid, hex.ErrLength)
 	}
 	if len(text) != hex.EncodedLen(sha256.Size) {
-		return "", fmt.Errorf("%w: expected %s", ErrInvalid, Format)
+		return "", fmt.Errorf("%w: expected %s", ErrInvalid, format)
 	}
 	decoded, err := hex.DecodeString(text)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	if text != hex.EncodeToString(decoded) {
-		return "", fmt.Errorf("%w: expected %s", ErrInvalid, Format)
+		return "", fmt.Errorf("%w: expected %s", ErrInvalid, format)
 	}
 	return Digest(text), nil
 }
