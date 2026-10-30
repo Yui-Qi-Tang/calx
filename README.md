@@ -47,7 +47,8 @@ the graph reconstructed from the matrices, axes and relation masks.
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"log"
 	"os"
 
@@ -71,12 +72,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	output := json.NewEncoder(os.Stdout)
-	output.SetIndent("", "  ")
-	if err := output.Encode(struct {
+	// Deterministic sorts map keys so the output is reproducible.
+	output := jsontext.NewEncoder(os.Stdout, jsontext.WithIndent("  "))
+	if err := json.MarshalEncode(output, struct {
 		Projection    incidence.Projection `json:"projection"`
 		Reconstructed incidence.Graph      `json:"reconstructed"`
-	}{Projection: projection, Reconstructed: reconstructed}); err != nil {
+	}{Projection: projection, Reconstructed: reconstructed}, json.Deterministic(true)); err != nil {
 		log.Fatal(err)
 	}
 }
