@@ -3,9 +3,11 @@
 package sat
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"unicode/utf8"
 )
 
@@ -64,20 +66,30 @@ func (c CNF) WriteDIMACS(w io.Writer) error {
 	if err := c.CheckShape(); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "p cnf %d %d\n", len(c.Variables), len(c.Clauses)); err != nil {
+	// One fmt call per literal dominated the time; format into a reused line
+	// buffer instead and write through bufio.
+	bw := bufio.NewWriterSize(w, 64<<10)
+	line := make([]byte, 0, 64)
+	line = append(line, "p cnf "...)
+	line = strconv.AppendInt(line, int64(len(c.Variables)), 10)
+	line = append(line, ' ')
+	line = strconv.AppendInt(line, int64(len(c.Clauses)), 10)
+	line = append(line, '\n')
+	if _, err := bw.Write(line); err != nil {
 		return err
 	}
 	for _, clause := range c.Clauses {
+		line = line[:0]
 		for _, lit := range clause {
-			if _, err := fmt.Fprintf(w, "%d ", lit); err != nil {
-				return err
-			}
+			line = strconv.AppendInt(line, int64(lit), 10)
+			line = append(line, ' ')
 		}
-		if _, err := fmt.Fprintln(w, "0"); err != nil {
+		line = append(line, '0', '\n')
+		if _, err := bw.Write(line); err != nil {
 			return err
 		}
 	}
-	return nil
+	return bw.Flush()
 }
 
 // CheckAssignment requires a total assignment and checks every original clause.

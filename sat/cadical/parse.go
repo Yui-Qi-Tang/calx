@@ -5,17 +5,25 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
 
 func exactLine(raw []byte, want string) bool {
+	return slices.Contains(strings.FieldsFunc(string(raw), func(r rune) bool { return r == '\n' || r == '\r' }), want)
+}
+
+// trivialVerified reports whether raw has a "c trivial UNSAT" line and
+// "s VERIFIED" as its only status line.
+func trivialVerified(raw []byte) bool {
+	var status []string
 	for _, line := range strings.FieldsFunc(string(raw), func(r rune) bool { return r == '\n' || r == '\r' }) {
-		if line == want {
-			return true
+		if strings.HasPrefix(line, "s ") {
+			status = append(status, line)
 		}
 	}
-	return false
+	return exactLine(raw, "c trivial UNSAT") && slices.Equal(status, []string{"s VERIFIED"})
 }
 
 // soleStatus reports whether want is the only solver status line in raw.
@@ -74,7 +82,7 @@ func assignment(raw []byte, count int) (map[int]bool, error) {
 }
 
 func hasAssignment(raw []byte) bool {
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		if strings.HasPrefix(line, "v ") {
 			return true
 		}

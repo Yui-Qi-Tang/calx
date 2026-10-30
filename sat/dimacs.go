@@ -26,18 +26,21 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 	}
 	scan := bufio.NewScanner(bytes.NewReader(raw))
 	scan.Buffer(make([]byte, 4096), l.MaxInputBytes)
+	// Lines are read as bytes and literals go into one shared backing slice:
+	// per-line strings and per-clause slices were most of the parse time.
 	c := CNF{}
 	header := false
 	want := 0
-	row := []int{}
+	lits := make([]int, 0, 64) // non-nil, so an empty clause stays non-nil
+	start := 0                 // first literal of the clause being read
 	literals := 0
 	for scan.Scan() {
-		line := strings.TrimSpace(scan.Text())
-		if line == "" || strings.HasPrefix(line, "c") {
+		line := bytes.TrimSpace(scan.Bytes())
+		if len(line) == 0 || line[0] == 'c' {
 			continue
 		}
-		fields := strings.Fields(line)
-		if fields[0] == "p" {
+		if isProblemLine(line) {
+			fields := strings.Fields(string(line))
 			if header || len(fields) != 4 || fields[1] != "cnf" {
 				return CNF{}, ErrInput
 			}
@@ -61,8 +64,8 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 		if !header {
 			return CNF{}, ErrInput
 		}
-		for _, field := range fields {
-			v, err := strconv.Atoi(field)
+		for field := range bytes.FieldsSeq(line) {
+			v, err := strconv.Atoi(string(field))
 			if err != nil {
 				return CNF{}, ErrInput
 			}
@@ -70,8 +73,10 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 				if len(c.Clauses) >= want {
 					return CNF{}, ErrInput
 				}
-				c.Clauses = append(c.Clauses, row)
-				row = []int{}
+				// The full slice expression keeps an append to one clause from
+				// overwriting the next.
+				c.Clauses = append(c.Clauses, lits[start:len(lits):len(lits)])
+				start = len(lits)
 				continue
 			}
 			if v > len(c.Variables) || v < -len(c.Variables) {
@@ -81,14 +86,23 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 			if literals > l.MaxLiterals {
 				return CNF{}, ErrLimit
 			}
-			row = append(row, v)
+			lits = append(lits, v)
 		}
 	}
 	if err := scan.Err(); err != nil {
 		return CNF{}, fmt.Errorf("%w: DIMACS line", ErrInput)
 	}
-	if !header || len(row) > 0 || len(c.Clauses) != want {
+	if !header || len(lits) > start || len(c.Clauses) != want {
 		return CNF{}, ErrInput
 	}
 	return c, c.CheckShape()
+}
+
+// isProblemLine reports whether the first field of line, as strings.Fields
+// would split it, is "p".
+func isProblemLine(line []byte) bool {
+	for field := range bytes.FieldsSeq(line) {
+		return string(field) == "p"
+	}
+	return false
 }

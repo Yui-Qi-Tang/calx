@@ -3,7 +3,7 @@ package cadical
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -21,7 +21,7 @@ type pouchVariable struct {
 	ID        int    `json:"id"`
 	Kind      string `json:"kind"`
 	Time      int    `json:"time"`
-	OtherTime int    `json:"other_time,omitempty"`
+	OtherTime int    `json:"other_time,omitzero"`
 	Field     string `json:"field,omitempty"`
 	Value     string `json:"value,omitempty"`
 	Action    string `json:"action,omitempty"`

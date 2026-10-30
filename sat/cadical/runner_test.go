@@ -156,3 +156,61 @@ func TestExactStatusLineHandlesCRWithoutAcceptingWhitespace(t *testing.T) {
 		}
 	}
 }
+
+func TestResultIsZeroIncludesAssignment(t *testing.T) {
+	if !(Result{}).IsZero() {
+		t.Fatal("zero Result must report IsZero")
+	}
+	if (Result{Assignment: map[int]bool{1: true}}).IsZero() {
+		t.Fatal("assignment ignored")
+	}
+	if (Result{Status: sat.SAT}).IsZero() {
+		t.Fatal("embedded result ignored")
+	}
+	r := fixtureRunner(t, "echo 's UNKNOWN'; exit 0", "exit 1", 10*time.Second)
+	got, err := r.Solve(context.Background(), "empty", tinyCNF())
+	if !errors.Is(err, sat.ErrInconclusive) {
+		t.Fatalf("got %v, want ErrInconclusive", err)
+	}
+	if got.IsZero() {
+		t.Fatal("Solve returned a zero Result")
+	}
+}
+
+func TestTrivialUNSATCheckerExitOne(t *testing.T) {
+	const solver = "touch proof.drat; echo 's UNSATISFIABLE'; exit 20"
+	// Lines as upstream DRAT-trim prints them for a formula with an empty clause.
+	const trivial = `printf 'c parsing input formula with 1 variables and 1 clauses\nc finished parsing\n\rc trivial UNSAT\ns VERIFIED\n\rc verification time: 0.001 seconds\n'`
+	empty := sat.CNF{Variables: []sat.Variable{{ID: 1}}, Clauses: [][]int{{1}, {}}}
+	for name, c := range map[string]struct {
+		checker string
+		cnf     sat.CNF
+		method  string // empty when the proof must be rejected
+	}{
+		"accepted":             {trivial + "; exit 1", empty, "drat-trim/trivial-unsat-empty-clause"},
+		"exit zero":            {trivial + "; exit 0", empty, "drat-trim/exit-zero-exact-verified"},
+		"no empty clause":      {trivial + "; exit 1", tinyCNF(), ""},
+		"not trivial":          {"echo 's VERIFIED'; exit 1", empty, ""},
+		"other exit code":      {trivial + "; exit 2", empty, ""},
+		"also not verified":    {trivial + "; echo 's NOT VERIFIED'; exit 1", empty, ""},
+		"extra status line":    {trivial + "; echo 's DERIVATION'; exit 1", empty, ""},
+		"trivial not verified": {"echo 'c trivial UNSAT'; exit 1", empty, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := fixtureRunner(t, solver, c.checker, 10*time.Second)
+			got, err := r.Solve(context.Background(), "q", c.cnf)
+			if c.method == "" {
+				if !errors.Is(err, sat.ErrValidation) || got.Proof.Checked {
+					t.Fatalf("accepted: %+v %v", got.Proof, err)
+				}
+				return
+			}
+			if err != nil || got.Proof.Method != c.method {
+				t.Fatalf("%+v %v", got.Proof, err)
+			}
+			if err := got.Require(sat.Requirements{UNSATProofChecked: true}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

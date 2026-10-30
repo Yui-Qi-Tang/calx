@@ -30,8 +30,9 @@ type sample struct {
 	Zero     int               `json:"zero,omitzero"`
 }
 
-// values covers every kind of field Calx marshals, plus the cases where v1 and
-// v2 defaults differ: map key order, nil collections, escaping and floats.
+// values covers the kinds of values Calx marshals (its private JSON forms are
+// tagged structs of the same field types), plus the cases where v1 and v2
+// defaults differ: map key order, nil collections, escaping and floats.
 func values() []any {
 	zero := 0
 	ints := map[int]bool{}
@@ -44,7 +45,7 @@ func values() []any {
 			Ints: ints, Strs: map[string]int{"z": 1, "A": 2, "é": 3, "10": 4, "9": 5},
 			Floats: []float64{0, 0.1, 0.25, -1, 1e21, 1e-7, 123456789.125, math.Sqrt(3) / 4}, Nested: [][]int{{}, {1, -2}}},
 		sample{},
-		sat.Result{Status: sat.SAT, Profile: "cnf/v0", SolverDigest: digest.Sum(nil), Artifacts: []sat.Artifact{{ID: "q/a", Bytes: 3}}},
+		sat.Result{Status: sat.SAT, SolverDigest: digest.Sum(nil), Artifacts: []sat.Artifact{{ID: "q/a", Bytes: 3}}},
 		cadical.Result{Status: sat.UNSAT, Assignment: ints},
 		sat.CNF{Variables: []sat.Variable{{ID: 1, Metadata: map[string]string{"k": `{"a":1}`}}, {ID: 2}}, Clauses: [][]int{{1, -2}, {}}},
 		finite.Variable{ID: 3, Kind: finite.DifferenceVariable, Time: 0, OtherTime: &other, Field: "f"},

@@ -1,13 +1,13 @@
 package cadical
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
 
@@ -17,7 +17,7 @@ func (r *Runner) Identity() (digest.Digest, error) {
 	if r == nil || r.root == "" {
 		return "", fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
 	}
-	raw, err := json.Marshal(struct {
+	raw, err := jsoncompat.Marshal(struct {
 		Solver, Checker digest.Digest
 		Limits          sat.Limits
 		ProofLimit      int64
@@ -61,4 +61,29 @@ func (r *Runner) ReadArtifact(a sat.Artifact) (data []byte, err error) {
 		return nil, fmt.Errorf("%w: artifact digest", sat.ErrValidation)
 	}
 	return data, nil
+}
+
+// cnfJSON and variableJSON fix the form of input.json, the target of the model
+// check, so it does not depend on sat's types. Variables and Clauses keep nil
+// and empty distinct; a nil or empty Origins or Metadata is omitted.
+type cnfJSON struct {
+	Variables []variableJSON `json:"variables"`
+	Clauses   [][]int        `json:"clauses"`
+	Origins   [][]string     `json:"origins,omitempty"`
+}
+
+type variableJSON struct {
+	ID       int               `json:"id"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+func inputJSON(c sat.CNF) cnfJSON {
+	var variables []variableJSON
+	if c.Variables != nil {
+		variables = make([]variableJSON, len(c.Variables))
+		for i, v := range c.Variables {
+			variables[i] = variableJSON(v)
+		}
+	}
+	return cnfJSON{Variables: variables, Clauses: c.Clauses, Origins: c.Origins}
 }

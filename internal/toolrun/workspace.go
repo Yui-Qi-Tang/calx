@@ -85,10 +85,49 @@ func Finish(dir, id string, result *sat.Result, solveErr *error) {
 		message = (*solveErr).Error()
 	}
 	err := WriteJSON(filepath.Join(dir, "outcome.json"), struct {
-		Result *sat.Result `json:"result"`
-		Error  string      `json:"error,omitempty"`
-	}{result, message})
+		Result resultJSON `json:"result"`
+		Error  string     `json:"error,omitempty"`
+	}{outcome(*result), message})
 	artifacts, inventoryErr := Inventory(dir, id)
 	result.Artifacts = artifacts
 	*solveErr = errors.Join(*solveErr, err, inventoryErr)
+}
+
+// resultJSON, validationJSON and artifactJSON fix the form of outcome.json, so
+// it does not depend on sat's types.
+type resultJSON struct {
+	Status        sat.Status     `json:"status"`
+	InputDigest   digest.Digest  `json:"input_digest,omitempty"`
+	FormulaDigest digest.Digest  `json:"formula_digest,omitempty"`
+	SolverDigest  digest.Digest  `json:"solver_digest"`
+	CheckerDigest digest.Digest  `json:"checker_digest,omitempty"`
+	Model         validationJSON `json:"model"`
+	Proof         validationJSON `json:"proof"`
+	Artifacts     []artifactJSON `json:"artifacts,omitempty"`
+}
+
+type validationJSON struct {
+	Present      bool          `json:"present"`
+	Decoded      bool          `json:"decoded"`
+	Checked      bool          `json:"checked"`
+	Method       string        `json:"method,omitempty"`
+	TargetDigest digest.Digest `json:"target_digest,omitempty"`
+}
+
+type artifactJSON struct {
+	ID     string        `json:"id"`
+	Digest digest.Digest `json:"digest"`
+	Bytes  int64         `json:"bytes"`
+}
+
+func outcome(r sat.Result) resultJSON {
+	artifacts := make([]artifactJSON, len(r.Artifacts))
+	for i, a := range r.Artifacts {
+		artifacts[i] = artifactJSON(a)
+	}
+	return resultJSON{
+		Status: r.Status, InputDigest: r.InputDigest, FormulaDigest: r.FormulaDigest,
+		SolverDigest: r.SolverDigest, CheckerDigest: r.CheckerDigest,
+		Model: validationJSON(r.Model), Proof: validationJSON(r.Proof), Artifacts: artifacts,
+	}
 }

@@ -55,12 +55,17 @@ type Validation struct {
 	TargetDigest digest.Digest `json:"target_digest,omitempty"`
 }
 
+// IsZero reports whether v is the zero Validation: nothing present, decoded or
+// checked, and no method or target recorded.
+func (v Validation) IsZero() bool {
+	return !v.Present && !v.Decoded && !v.Checked && v.Method == "" && v.TargetDigest == ""
+}
+
 // Result binds one answer to the input, encoding, tools and check records.
 // Callers must inspect the Solve error before using the result. Even on error,
 // a backend answer and partial artifacts may be available for diagnosis.
 type Result struct {
 	Status        Status        `json:"status"`
-	Profile       string        `json:"profile"`
 	InputDigest   digest.Digest `json:"input_digest,omitempty"`
 	FormulaDigest digest.Digest `json:"formula_digest,omitempty"`
 	SolverDigest  digest.Digest `json:"solver_digest"`
@@ -68,6 +73,15 @@ type Result struct {
 	Model         Validation    `json:"model"`
 	Proof         Validation    `json:"proof"`
 	Artifacts     []Artifact    `json:"artifacts,omitempty"`
+}
+
+// IsZero reports whether r is the zero Result. A runner never returns a zero
+// Result, even on error: it sets at least Status, so IsZero distinguishes an
+// unset Result from an UNKNOWN answer.
+func (r Result) IsZero() bool {
+	return r.Status == "" && r.InputDigest == "" && r.FormulaDigest == "" &&
+		r.SolverDigest == "" && r.CheckerDigest == "" && r.Model.IsZero() && r.Proof.IsZero() &&
+		len(r.Artifacts) == 0
 }
 
 // Requirements specifies the checks a consumer needs for each possible answer.

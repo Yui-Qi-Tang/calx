@@ -1,18 +1,18 @@
 // Package cadical runs pinned CaDiCaL and DRAT-trim executables. SAT assignments
 // are checked against every input clause; UNSAT requires a checked DRAT proof.
-// Adapted from Pouch internal/sat; see ../../NOTICE.
 package cadical
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/internal/jsoncompat"
 	"github.com/Yui-Qi-Tang/calx/internal/toolrun"
 	"github.com/Yui-Qi-Tang/calx/sat"
 )
@@ -45,6 +45,10 @@ type Result struct {
 	sat.Result
 	Assignment map[int]bool `json:"assignment,omitempty"`
 }
+
+// IsZero reports whether r is the zero Result, including no assignment. It
+// shadows sat.Result.IsZero so that Assignment is taken into account.
+func (r Result) IsZero() bool { return r.Result.IsZero() && len(r.Assignment) == 0 }
 
 // New verifies executable hashes before creating private copies.
 func New(c Config) (*Runner, error) {
@@ -80,9 +84,9 @@ func New(c Config) (*Runner, error) {
 // observed cancellation or deadline errors remain discoverable with errors.Is.
 func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Result, err error) {
 	if r == nil || r.root == "" {
-		return Result{Result: sat.Result{Status: sat.Unknown}}, fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
+		return Result{Status: sat.Unknown}, fmt.Errorf("%w: uninitialized runner", sat.ErrInput)
 	}
-	result.Result = sat.Result{Status: sat.Unknown, Profile: "cnf/v0", SolverDigest: r.config.SolverDigest, CheckerDigest: r.config.CheckerDigest}
+	result.Result = sat.Result{Status: sat.Unknown, SolverDigest: r.config.SolverDigest, CheckerDigest: r.config.CheckerDigest}
 	ctx, cancel := context.WithTimeout(ctx, r.config.Limits.Timeout)
 	defer cancel()
 	if err = ctx.Err(); err != nil {
@@ -96,7 +100,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		return result, err
 	}
 	defer toolrun.Finish(dir, id, &result.Result, &err)
-	input, err := json.Marshal(cnf)
+	input, err := jsoncompat.Marshal(inputJSON(cnf))
 	if err != nil {
 		return result, err
 	}
@@ -132,7 +136,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		err = checkModel(dir, cnf, stdout, &result)
 	case process.ExitCode == 20 && soleStatus(stdout, "s UNSATISFIABLE"):
 		result.Status = sat.UNSAT
-		err = r.checkProof(ctx, dir, &result.Result)
+		err = r.checkProof(ctx, dir, hasEmptyClause(cnf), &result.Result)
 	case process.ExitCode == 0 && soleStatus(stdout, "s UNKNOWN"):
 		return result, errors.Join(sat.ErrInconclusive, ctx.Err())
 	default:
@@ -166,7 +170,8 @@ func checkModel(dir string, cnf sat.CNF, stdout []byte, result *Result) error {
 }
 
 // checkProof runs the pinned DRAT checker on the retained formula and proof.
-func (r *Runner) checkProof(ctx context.Context, dir string, result *sat.Result) error {
+// emptyClause reports whether the formula itself contains an empty clause.
+func (r *Runner) checkProof(ctx context.Context, dir string, emptyClause bool, result *sat.Result) error {
 	proof, err := os.Lstat(filepath.Join(dir, "proof.drat"))
 	if err != nil {
 		return fmt.Errorf("%w: inspecting proof: %w", sat.ErrProtocol, err)
@@ -186,11 +191,23 @@ func (r *Runner) checkProof(ctx context.Context, dir string, result *sat.Result)
 	if err != nil {
 		return err
 	}
-	if checked.ExitCode != 0 || !exactLine(output, "s VERIFIED") || exactLine(output, "s NOT VERIFIED") {
+	switch {
+	case !exactLine(output, "s VERIFIED") || exactLine(output, "s NOT VERIFIED"):
+		return fmt.Errorf("%w: proof checker", sat.ErrValidation)
+	case checked.ExitCode == 0:
+		result.Proof.Method = "drat-trim/exit-zero-exact-verified"
+	case checked.ExitCode == 1 && emptyClause && trivialVerified(output):
+		// Upstream DRAT-trim reports a formula that already contains an empty
+		// clause as "c trivial UNSAT" and "s VERIFIED", then exits 1.
+		result.Proof.Method = "drat-trim/trivial-unsat-empty-clause"
+	default:
 		return fmt.Errorf("%w: proof checker", sat.ErrValidation)
 	}
 	result.Proof.Checked = true
-	result.Proof.Method = "drat-trim/exit-zero-exact-verified"
 	result.Proof.TargetDigest = result.FormulaDigest
 	return nil
+}
+
+func hasEmptyClause(cnf sat.CNF) bool {
+	return slices.ContainsFunc(cnf.Clauses, func(clause []int) bool { return len(clause) == 0 })
 }

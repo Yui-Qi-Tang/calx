@@ -2,7 +2,7 @@ package cadical
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -71,8 +71,10 @@ func TestInconclusivePreservesStatusAndArtifacts(t *testing.T) {
 		t.Fatalf("solver output = %q", files["solver.stdout"])
 	}
 	var outcome struct {
-		Result sat.Result `json:"result"`
-		Error  string     `json:"error"`
+		Result struct {
+			Status sat.Status `json:"status"`
+		} `json:"result"`
+		Error string `json:"error"`
 	}
 	if err := json.Unmarshal(files["outcome.json"], &outcome); err != nil {
 		t.Fatal(err)
@@ -116,7 +118,7 @@ func TestConcurrentIsolationAndMapping(t *testing.T) {
 	c.Variables[0].Metadata = map[string]string{"kind": "action", "time": "0", "action": "rotate", "other_time": "2"}
 	c.Origins = [][]string{{"rule-power-to-light", "fact-power"}}
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -131,8 +133,8 @@ func TestConcurrentIsolationAndMapping(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			var saved sat.CNF
-			if err = json.Unmarshal(raw, &saved); err != nil || !reflect.DeepEqual(saved, c) {
+			var saved cnfJSON
+			if err = json.Unmarshal(raw, &saved); err != nil || !reflect.DeepEqual(saved, inputJSON(c)) {
 				t.Errorf("mapping changed: %v", err)
 			}
 		}(i)
