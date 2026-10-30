@@ -14,9 +14,10 @@ import (
 // Query binds one exact-length run of Steps steps, at least 0; the encoding
 // budget bounds how many fit. Start constrains the state at time zero, Goal
 // the state at time Steps, and no state at any time may match a Forbidden
-// pattern. A nonempty Violates additionally requires that quantity to differ
-// between times zero and Steps; UNSAT then is a conservation proof bounded to
-// this system, length and set of patterns.
+// pattern. A nonempty Violates additionally requires some step to change that
+// quantity, so a run that changes it and changes it back also counts; with
+// Steps 0 it is UNSAT. UNSAT then is a conservation proof, at every time of the
+// run, bounded to this system, length and set of patterns.
 type Query struct {
 	Steps     int
 	Start     Pattern
@@ -85,7 +86,7 @@ func newBudget(opts []Option) (budget, error) {
 // Accessors return independent copies; Decode checks against the private CNF.
 type Encoding struct {
 	formula sat.CNF
-	digest  digest.Digest // Content digest of the rule tables and query.
+	digest  digest.Digest // Content digest of the profile, structure, rule tables and query.
 	layout  layout
 }
 
@@ -106,8 +107,9 @@ func (l layout) variables() int { return (l.steps+1)*l.cells*l.bits + l.steps*l.
 
 // Compile validates and encodes one query without invoking a solver. Each
 // cell's rule is evaluated once per input row and cached for all steps.
-// Invalid systems, queries or options return ErrInput, an exceeded budget
-// returns ErrEncodingLimit, and a canceled ctx returns its error.
+// Invalid systems, queries or options return ErrInput; more than 1,048,576
+// cells or an exceeded budget returns ErrEncodingLimit; a canceled ctx returns
+// its error.
 func Compile(ctx context.Context, sys System, q Query, opts ...Option) (*Encoding, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -205,10 +207,13 @@ func encodingSize(l layout, q Query) (fixed, perStep counts) {
 		fixed.literals += int64(len(p))
 		perStep.literals += int64(len(p))
 	}
-	v, c, lits := violationSize(len(q.Violates))
-	fixed.variables += v
-	fixed.clauses += c
-	fixed.literals += lits
+	if len(q.Violates) > 0 { // one comparison per step, then one clause over them
+		v, c, lits := violationSize(len(q.Violates))
+		perStep.variables += v
+		perStep.clauses += c
+		perStep.literals += lits + 1
+		fixed.clauses++
+	}
 	return fixed, perStep
 }
 
@@ -230,8 +235,15 @@ func ruleTable(sys System, s shape, c int) []bool {
 	return table
 }
 
+// encode runs after checkBudget, so the sizes from encodingSize fit in int and
+// are exact; they preallocate the formula.
 func encode(ctx context.Context, l layout, tables [][]bool, q Query) (sat.CNF, error) {
-	cnf := sat.CNF{Variables: make([]sat.Variable, l.variables())}
+	fixed, perStep := encodingSize(l, q)
+	steps := int64(l.steps)
+	cnf := sat.CNF{
+		Variables: make([]sat.Variable, l.variables(), fixed.variables+steps*perStep.variables),
+		Clauses:   make([][]int, 0, fixed.clauses+steps*perStep.clauses),
+	}
 	for i := range cnf.Variables {
 		cnf.Variables[i].ID = i + 1
 	}
@@ -294,8 +306,14 @@ func encode(ctx context.Context, l layout, tables [][]bool, q Query) (sat.CNF, e
 		}
 	}
 	if len(q.Violates) > 0 {
+		// Some step must change the quantity, so a run that changes it and
+		// changes it back still counts.
 		b := builder{cnf: &cnf, next: len(cnf.Variables) + 1}
-		b.differ(l.violationSides(q.Violates))
+		changed := make([]int, 0, l.steps)
+		for t := 1; t <= l.steps; t++ {
+			changed = append(changed, b.differ(l.violationSides(q.Violates, t-1, t)))
+		}
+		b.add(changed...)
 	}
 	return cnf, cnf.CheckShape()
 }

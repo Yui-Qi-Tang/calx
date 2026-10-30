@@ -167,7 +167,7 @@ func mass(cells int) Quantity {
 
 // TestViolationOracle enumerates every start state and choice sequence, and
 // requires the formula to admit a run exactly when the oracle sees the run
-// meet the patterns and change the quantity.
+// meet the patterns and change the quantity at some step.
 func TestViolationOracle(t *testing.T) {
 	cases := []struct {
 		name string
@@ -182,6 +182,8 @@ func TestViolationOracle(t *testing.T) {
 		{"pair-mixed", pair{}, Query{Steps: 2, Violates: Quantity{{Bit: Bit{Cell: 0, Index: 0}, Weight: 1}, {Bit: Bit{Cell: 1, Index: 1}, Weight: -1}, {Bit: Bit{Cell: 0, Index: 1}, Weight: 1}}}},
 		{"coin-mass", coin{cells: 3}, Query{Steps: 2, Goal: Pattern{{Cell: 0}: true}, Violates: mass(3)}},
 		{"single-term", elementary{cells: 3, rule: 110}, Query{Steps: 1, Violates: Quantity{{Bit: Bit{Cell: 1}, Weight: -1}}}},
+		// Rule 51 negates every cell, so the mass changes and changes back.
+		{"rule51-returns", elementary{cells: 3, rule: 51}, Query{Steps: 2, Violates: mass(3)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -210,8 +212,13 @@ func TestViolationOracle(t *testing.T) {
 						}
 					}
 					run := oracleRun(tc.sys, start, choices)
-					want := oracleMeets(tc.q, run, l.bits) &&
-						quantityValue(tc.q.Violates, run.States[0], l.bits) != quantityValue(tc.q.Violates, run.States[l.steps], l.bits)
+					changed := false
+					for step := 1; step <= l.steps; step++ {
+						if quantityValue(tc.q.Violates, run.States[step-1], l.bits) != quantityValue(tc.q.Violates, run.States[step], l.bits) {
+							changed = true
+						}
+					}
+					want := oracleMeets(tc.q, run, l.bits) && changed
 					fixed := map[int]bool{}
 					for time, s := range run.States {
 						for c := range l.cells {
@@ -267,6 +274,10 @@ func TestEncodingSizeMatchesFormula(t *testing.T) {
 		gotLiterals := 0
 		for _, clause := range e.formula.Clauses {
 			gotLiterals += len(clause)
+		}
+		if cap(e.formula.Variables) != len(e.formula.Variables) || cap(e.formula.Clauses) != len(e.formula.Clauses) {
+			t.Fatalf("%+v: formula grew past its preallocation: variables %d/%d, clauses %d/%d", tc.q,
+				len(e.formula.Variables), cap(e.formula.Variables), len(e.formula.Clauses), cap(e.formula.Clauses))
 		}
 		if variables != int64(len(e.formula.Variables)) || clauses != int64(len(e.formula.Clauses)) || literals != int64(gotLiterals) {
 			t.Fatalf("%+v: predicted %d/%d/%d, built %d/%d/%d", tc.q, variables, clauses, literals,

@@ -124,7 +124,7 @@ func TestRealToolsHPP(t *testing.T) {
 				if status != sat.SAT {
 					t.Fatalf("status %s, want SAT", status)
 				}
-				if value(q, run.States[0], 4) == value(q, run.States[steps], 4) {
+				if !changes(q, run.States, 4) {
 					t.Fatal("counterexample does not change the quantity")
 				}
 			})
@@ -163,8 +163,8 @@ func TestRealToolsHPP(t *testing.T) {
 	})
 }
 
-// leakyFHP breaks FHP on purpose: a counterclockwise head-on pair loses one
-// particle.
+// leakyFHP breaks FHP on purpose: a counterclockwise east-west head-on pair
+// loses its south-west particle.
 type leakyFHP struct{ FHP }
 
 func (l leakyFHP) Next(cell int, in, out []bool) {
@@ -189,7 +189,7 @@ func TestRealToolsFHPAndWalls(t *testing.T) {
 	f := FHP{Width: 3, Height: 3}
 	t.Run("fhp-leaky-mass", func(t *testing.T) {
 		status, run := solve(t, r, "fhp-leaky-mass", leakyFHP{f}, automaton.Query{Steps: 2, Violates: f.Mass()})
-		if status != sat.SAT || value(f.Mass(), run.States[0], 6) == value(f.Mass(), run.States[2], 6) {
+		if status != sat.SAT || !changes(f.Mass(), run.States, 6) {
 			t.Fatalf("status %s, want a counterexample that loses mass", status)
 		}
 	})
@@ -229,8 +229,18 @@ func TestRealToolsFHPAndWalls(t *testing.T) {
 	})
 	t.Run("hpp-walls-change-momentum", func(t *testing.T) {
 		status, run := solve(t, r, "hpp-walls-change-momentum", walled, automaton.Query{Steps: 3, Violates: walled.MomentumX()})
-		if status != sat.SAT || value(walled.MomentumX(), run.States[0], 4) == value(walled.MomentumX(), run.States[3], 4) {
+		if status != sat.SAT || !changes(walled.MomentumX(), run.States, 4) {
 			t.Fatalf("status %s, want a counterexample that changes momentum", status)
 		}
 	})
+}
+
+// changes reports whether some step of states changes q, as Violates requires.
+func changes(q automaton.Quantity, states []automaton.State, bits int) bool {
+	for t := 1; t < len(states); t++ {
+		if value(q, states[t-1], bits) != value(q, states[t], bits) {
+			return true
+		}
+	}
+	return false
 }

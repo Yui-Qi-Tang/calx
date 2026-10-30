@@ -27,12 +27,13 @@ func (s shape) checkQuantity(q Quantity) error {
 	return nil
 }
 
-// violationSides returns the literals of L = P(0) + N(k) and R = P(k) + N(0),
+// violationSides returns the literals of L = P(a) + N(b) and R = P(b) + N(a),
 // where P and N count the true bits with weight +1 and -1. The quantity
-// P - N differs between times 0 and k exactly when the counts L and R differ.
-func (l layout) violationSides(q Quantity) (left, right []int) {
+// P - N differs between times a and b exactly when the counts L and R differ.
+func (l layout) violationSides(q Quantity, a, b int) (left, right []int) {
+	left, right = make([]int, 0, len(q)), make([]int, 0, len(q))
 	for _, t := range q {
-		start, end := l.stateVar(0, t.Bit), l.stateVar(l.steps, t.Bit)
+		start, end := l.stateVar(a, t.Bit), l.stateVar(b, t.Bit)
 		if t.Weight < 0 {
 			start, end = end, start
 		}
@@ -98,18 +99,22 @@ func (b *builder) totalizer(inputs []int) []int {
 	return out
 }
 
-// differ requires the counts of true literals in left and right to differ.
-// Both totalizers are exact, so some output position must disagree.
-func (b *builder) differ(left, right []int) {
+// differ returns a variable that, when true, requires the counts of true
+// literals in left and right to differ. Both totalizers are exact, so some
+// output position must then disagree.
+func (b *builder) differ(left, right []int) int {
 	l, r := b.totalizer(left), b.totalizer(right)
-	disagree := make([]int, len(l))
+	changed := b.newVar()
+	disagree := make([]int, 0, len(l)+1)
+	disagree = append(disagree, -changed)
 	for j := range l {
 		d := b.newVar()
 		b.add(-d, l[j], r[j])
 		b.add(-d, -l[j], -r[j])
-		disagree[j] = d
+		disagree = append(disagree, d)
 	}
 	b.add(disagree...)
+	return changed
 }
 
 // totalizerSize counts what totalizer adds for m inputs, without building it.
@@ -125,12 +130,13 @@ func totalizerSize(m int64) (variables, clauses, literals int64) {
 	return v1 + v2 + m, c1 + c2 + 2*(pairs-1), l1 + l2 + 2*(pairs+p*(q+1)+q*(p+1)-1)
 }
 
-// violationSize counts what differ adds for a quantity of m terms.
+// violationSize counts what differ adds for one pair of times and a quantity
+// of m terms.
 func violationSize(m int) (variables, clauses, literals int64) {
 	if m == 0 {
 		return 0, 0, 0
 	}
 	n := int64(m)
 	v, c, l := totalizerSize(n)
-	return 2*v + n, 2*c + 2*n + 1, 2*l + 6*n + n
+	return 2*v + n + 1, 2*c + 2*n + 1, 2*l + 6*n + n + 1
 }

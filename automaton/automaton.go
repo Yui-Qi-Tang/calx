@@ -14,8 +14,9 @@ import (
 )
 
 // Profile identifies exact-length synchronous runs encoded from per-cell rule
-// tables.
-const Profile = "synchronous-boolean/v1"
+// tables. Version 2 requires a Violates quantity to change at some step,
+// where version 1 compared only the first and last time.
+const Profile = "synchronous-boolean/v2"
 
 var (
 	// ErrInput marks a malformed system, query or trajectory, not UNSAT.
@@ -26,7 +27,7 @@ var (
 	ErrReplay = errors.New("trajectory does not follow the system")
 )
 
-// v1 support limits; see Compile for the encoding budget.
+// Support limits; see Option for the encoding budget.
 const (
 	maxCells = 1 << 20
 	maxBits  = 16

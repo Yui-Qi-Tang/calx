@@ -83,7 +83,10 @@ func pack(g geometry, s automaton.State) (*packed, error) {
 	if len(s) != g.cells()*g.bits {
 		return nil, fmt.Errorf("%w: state size", ErrInput)
 	}
-	p := &packed{g: g, walls: newPlane(g.width, g.height), choice: newPlane(g.width, g.height)}
+	p := &packed{
+		g: g, walls: newPlane(g.width, g.height), choice: newPlane(g.width, g.height),
+		dirs: make([]plane, 0, g.bits), next: make([]plane, 0, g.bits),
+	}
 	for range g.bits {
 		p.dirs = append(p.dirs, newPlane(g.width, g.height))
 		p.next = append(p.next, newPlane(g.width, g.height))

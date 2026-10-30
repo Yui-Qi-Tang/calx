@@ -125,7 +125,10 @@ func runCheck(ctx context.Context, artifacts string) error {
 		Counterexample []int      `json:"counterexample_mass,omitempty"`
 	}{ConservedMass: conserved, LeakyMass: broken}
 	if broken == sat.SAT {
-		out.Counterexample = []int{value(h.Mass(), run.States[0]), value(h.Mass(), run.States[len(run.States)-1])}
+		// The mass at every time; some step changes it.
+		for _, s := range run.States {
+			out.Counterexample = append(out.Counterexample, value(h.Mass(), s))
+		}
 	}
 	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), out)
 }
