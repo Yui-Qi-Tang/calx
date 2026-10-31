@@ -47,7 +47,9 @@ consumer's semantic interpreter merely to remove a tooling dependency.
 The standalone finite CLI and rejection of unsupported typed input are also
 checked. A successful command produces results.json, source-manifest.json and
 per-command stdout/stderr/exit records. Failure returns an error and retains
-partial check results. Passing these selected checks is not native adoption.
+partial check results. The planning consumer imports Calx directly. For the
+declaration compilers and the experiment consumer, passing these selected checks
+is not native adoption.
 
 The checker expects `calx-cli/v2` and records newly generated source identities
 under `digest` keys. The frozen fixture manifest keeps its original `sha256`

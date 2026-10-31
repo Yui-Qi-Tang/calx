@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
@@ -24,15 +23,6 @@ func TestRealTools(t *testing.T) {
 	r, err := New(Config{SolverPath: os.Getenv("CALX_CADICAL"), SolverDigest: digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")), CheckerPath: os.Getenv("CALX_DRAT"), CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")), ArtifactDir: filepath.Join(os.Getenv("CALX_ARTIFACTS"), "cadical")})
 	if err != nil {
 		t.Fatal(err)
-	}
-	for _, name := range []string{"sat", "unsat"} {
-		t.Run("pouch-"+name, func(t *testing.T) {
-			adapter := pouchAdapter{runner: r}
-			got, err := adapter.Solve(context.Background(), "pouch-"+name, pouchFixture(t, name))
-			if err != nil || !got.Verified || got.Status != strings.ToUpper(name) {
-				t.Fatalf("%+v %v", got, err)
-			}
-		})
 	}
 	cases := acceptance.Cases()
 	names := make([]string, 0, len(cases))

@@ -701,7 +701,8 @@ deliberately broken rules, and check walls and chirality.
 [Consumer conformance](docs/compatibility.md) exercises selected external consumer
 Go source snapshots and frozen CNF fixtures in fresh ignored directories.
 The compatibility command is implemented in Go; it does not require Python.
-It does not switch the formal consumers. [Validation](docs/validation.md)
+The planning consumer imports Calx directly; the other consumers are checked at
+selected boundaries and have not adopted it. [Validation](docs/validation.md)
 records the observed scope and limitations.
 
 ## Current limitations

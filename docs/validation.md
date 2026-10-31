@@ -5,12 +5,13 @@
 Observed locally on darwin/arm64 (Apple M5 Max) with Go 1.27.3, on a temporary
 copy with the action limit at 8,192, so the budget could be measured past 1,024.
 These models are synthetic, with assumed field and action structure, so their
-solve times are indicative only; the composed models below are from real use. Compile times are the median of five runs, in one
-process; solving ran one query at a time with the pinned CaDiCaL and DRAT-trim
-under default `sat.Limits`. A full rerun on the final code gave the same
-variable, clause and literal counts, sequence counts and statuses. That rerun
-kept 64 values per field. The only differences are the ones its limit causes: 1,414 or more actions fail with
-`ErrInput`, and horizon 1 stops at 1,024. Its timings are not shown, because
+solve times are indicative only; the composed models below are from real use.
+Compile times are the median of five runs, in one process; solving ran one query
+at a time with the pinned CaDiCaL and DRAT-trim under default `sat.Limits`. A
+full rerun with the 1,024 action limit, which still had 64 values per field,
+gave the same variable, clause and literal counts, sequence counts and statuses.
+The only differences are the ones that limit causes: 1,414 or more actions fail
+with `ErrInput`, and horizon 1 stops at 1,024. Its timings are not shown, because
 other work ran beside it.
 
 One compile at horizon 8 with 243 actions and 4,140 Cartesian states:
@@ -80,7 +81,8 @@ for horizon 8 with nothing blocked:
 | --- | --- |
 | The Cartesian state limit is removed, `maxActions` goes from 64 to 1,024 and `maxValues` from 64 to 256; `Profile` stays v1 | `TestAcceptedEncodingsAreUnchanged` pins the digest and DIMACS hash of three models, including 4,096 states with 64 actions, captured from the code before the change. `TestDomainProductIsNotALimit`, `TestActionLimit` (with the `Project` and `Matrix.Model` round trip at 65, 243 and 1,024 actions, and rejection of 1,025), `TestValueLimit` (65, 115 and 256 values, and rejection of 257) and `TestOverBudgetIsAnEncodingLimit` all failed before the change. Setting either limit one above or below and changing `Profile` each fail a test. `make verify` and `make race` pass, as do the real-tool tests in `sat/cadical` and `lga`. |
 | The CLI accepts the wider models | `solve-finite` with the pinned tools, previous and new binary, on seven models. All past the old limits fail on the previous binary. On the new one, 243 actions over 4,140 states, 88 actions over 105,600, 16 fields of 64 and 1,024 actions at horizon 1 are SAT, with traces replayed independently in Python; 8,192 states is UNSAT; 1,025 actions keeps `INPUT_OR_EXECUTION`; 1,024 actions at horizon 8 now returns `LIMIT`. Encoding `examples/finite.json` is byte-identical on both binaries. |
-| Consumer conformance | The planning-consumer step had stopped building at the commit before this change: its adapter fixture expected a `CNF` type and an older `encode` signature that the consumer has replaced. The fixture is removed, so this check no longer compares exact DIMACS or runs that consumer's search; the consumer's own tests cover its search. The step still builds the consumer's planning code against Calx and compares topology. The full check passes every step (`artifacts/consumer-check-20261031-01/`). |
+| Frozen planning-consumer solver tests removed from `sat/cadical` | They exercised a test-local copy of a contract that consumer has replaced with `sat.CNF`. Removing them and their fixtures loses none of the package's 132 coverage blocks, measured without the `resolverintegration` tag: `contract_test.go` and `runner_test.go` cover the same errors, limits, artifacts and metadata with generic formulas, and `acceptance.Cases()` covers real SAT and UNSAT runs. |
+| Consumer conformance | The planning-consumer step had stopped building at the commit before this change: its adapter fixture expected a `CNF` type and an older `encode` signature that the consumer has replaced. The fixture is removed, so this check no longer compares exact DIMACS or runs that consumer's search; the consumer's own tests cover its search. The step still builds the consumer's planning code against Calx and compares topology. The full check passes every step (`artifacts/consumer-check-20261031-02/`). |
 
 ## Functional budget options — 2026-10-30
 
