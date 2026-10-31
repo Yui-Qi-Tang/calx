@@ -27,8 +27,8 @@ classDiagram
     Encoding --> Trace : Decode
 ```
 
-The diagram covers the v0 types. The v0.1 `automaton` and `lga` types have
-their own sections below. `Graph`/`Projection` refer to `incidence`; `Model`
+The diagram covers the v0 types. The v0.1 `automaton` and `lga` types and the
+`mus` and `linear` types have their own sections below. `Graph`/`Projection` refer to `incidence`; `Model`
 through `Trace` refer to `finite`; `CNF`/validation/artifacts refer to `sat`. `VariableMap` in the diagram
 means `[]finite.Variable`. `SolverResult` means `cadical.Result`.
 
@@ -405,6 +405,60 @@ values before using them, including values constructed by a direct cast.
 Runner owns private configuration and tool copies. `New` constructs it; `Solve`
 returns `cadical.Result, error`; `Identity` returns `(digest.Digest, error)` for effective tools/limits;
 `ReadArtifact` verifies retained bytes against an Artifact. Callers own retention.
+
+## Conflict localization
+
+These are Go API types; the CLI has no matching command.
+
+| `mus.Oracle` method | Purpose |
+| --- | --- |
+| `Groups() int` | Number of removable groups, at least 0 |
+| `Check(ctx, step, keep) (sat.Result, error)` | Decide the groups with `keep[i]` true; `step` counts checks from 0 |
+
+| `mus.Core` field | Type | Meaning |
+| --- | --- | --- |
+| `Groups` | `[]int` | Remaining group indices in ascending order; nil until a conflict is established |
+| `Minimal` | `bool` | Every remaining group had a satisfiable deletion |
+| `Witness` | `sat.Result` | The check of exactly `Groups`; its Status is UNSAT once a conflict is established |
+| `Steps` | `[]mus.Step` | Every check made, in order |
+
+`mus.Step` has `Removed`, the group left out or -1 for the first check, and
+`Result`. `mus.Shrink` takes an Oracle, the `sat.Requirements` every answer must
+meet, and options such as `mus.WithMaxChecks`. It returns `(Core, error)`.
+
+`mus.ByOrigin` takes a `sat.CNF` and a `mus.Solve`, a function of context, check
+number and trial CNF that returns `(sat.Result, error)`. It returns a `*mus.Origins`,
+the Oracle over that CNF. Its `Names` method returns a copy of the origin string of
+each group index.
+
+## Linear problems and assignments
+
+These are Go API types; the CLI has no matching command.
+
+| `linear.Problem` field | Type | Meaning |
+| --- | --- | --- |
+| `Booleans` | `sat.CNF` | Boolean variables and clauses |
+| `Integers` | `[]sat.Variable` | Integer variables, with their own one-based IDs |
+| `Constraints` | `[]linear.Constraint` | Conjunction of comparisons |
+
+`linear.Constraint` has `Terms`, `Relation` (`Equal`, `AtMost` or `AtLeast`), `RHS`
+and optional `Origins`. `linear.Term` has `Variable` and `Coefficient`. `RHS` and
+`Coefficient` are canonical decimal strings; `linear.Integer` parses one.
+`linear.Assignment` has `Booleans map[int]bool` and `Integers map[int]string`.
+
+| `linear.Problem` method | Purpose |
+| --- | --- |
+| `CheckShape() error` | Validate IDs, relations, numbers and text |
+| `CheckLimits(sat.Limits) error` | Check dimensions against the limits, then the shape |
+| `WriteSMTLIB(io.Writer) error` | Write the formula, without check-sat or model commands |
+| `CheckAssignment(Assignment) error` | Require a total assignment and evaluate every clause and constraint exactly |
+
+`z3.Config` has `SolverPath`, `SolverDigest`, `ArtifactDir` and `Limits`, with the
+same meaning as in `cadical.Config`. `z3.Result` embeds `sat.Result` and adds
+`Assignment`. `z3.New` constructs a `*z3.Runner`, and its `Solve` takes a context, a
+query ID and a `linear.Problem` and returns `(z3.Result, error)`. A query directory
+holds `input.json`, `input.smt2`, the process records of `solver` and `outcome.json`,
+and for SAT also `model.smt2`, the records of `model` and `assignment.json`.
 
 ## CLI request and response structures
 

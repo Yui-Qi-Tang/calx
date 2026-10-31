@@ -188,6 +188,66 @@ also bound input at 16 MiB, each output stream at 16 MiB, and accepted proof at
 terminates the process group; descendant termination is not guaranteed on other
 platforms. Native Windows execution has not been validated.
 
+## Conflict localization
+
+`mus.Shrink` first checks every group together, then tries deleting each group
+in index order: an UNSAT deletion removes the group, a SAT deletion keeps it.
+A run that finishes makes exactly `Groups()+1` checks, and one that stops makes
+fewer. The index order
+decides which conflict is found. Minimal means every remaining group had a
+satisfiable deletion, which assumes the caller's Oracle is monotone: removing a
+group never turns a satisfiable subset unsatisfiable. A Core is one conflict. It
+is not every conflict, not a smallest one, and not a statement about which group
+is wrong or how to repair it.
+
+`Shrink` never trusts an earlier answer: the first check is its own, so a Witness
+always comes from a check of exactly `Groups`. Every answer must meet the caller's
+`sat.Requirements`; the zero value accepts unchecked answers and has to be passed
+deliberately. UNKNOWN, a failed check and an unmet requirement stop the run, and
+none of them is read as SAT or UNSAT. A complete set that is satisfiable returns
+`mus.ErrSatisfiable`, and an exhausted budget returns `mus.ErrBudget`.
+
+On any error, if `Witness.Status` is `sat.UNSAT` then `Groups` still conflict, but
+`Minimal` is false and a group may be redundant. Otherwise no conflict was
+established and `Groups` is nil. `Steps` always holds every check made, including
+the failed one. Group indices mean nothing to Calx, and a check that fails has
+already retained whatever its backend keeps.
+
+`mus.ByOrigin` uses the distinct `CNF.Origins` strings, sorted, as groups. It
+requires Origins. A clause with no origins is in every check. A clause with
+several origins stays while any of them is kept, so each origin is taken to assert
+the clause alone; clauses that depend on origins jointly need their own Oracle.
+
+## Linear integers
+
+The `linear` profile is Boolean CNF plus a conjunction of comparisons `=`, `<=`
+or `>=` between a sum of constant multiples of integer variables and a constant.
+An empty sum is zero. Integers are canonical decimal strings with no machine-size
+limit. Boolean and integer IDs are separate, contiguous and one-based. This is a
+subset of QF_LIA: no SMT-LIB input, quantifiers, nonlinear multiplication, arrays
+or disjunctions that mix Booleans with arithmetic. An unknown relation returns
+`linear.ErrUnsupported`, and other malformed input returns `sat.ErrInput`. Origins
+and metadata add no constraints.
+
+`Problem.CheckLimits` shares the `sat.Limits` budgets: Boolean plus integer
+variables against MaxVariables, clauses plus constraints against MaxClauses, and
+literals plus terms against MaxLiterals. Digit counts are bounded only by
+MaxInputBytes.
+
+`linear/z3` makes one process for the answer and, for SAT only, a second for the
+values. Both share one deadline. The second may return a different model than the
+first would; it must still be SAT and total, and it is evaluated against the
+original typed problem with exact arithmetic. InputDigest binds exact generated
+`input.json` and FormulaDigest exact generated `input.smt2`. An explicit `unknown`
+returns `sat.ErrInconclusive`, as in `sat/cadical`.
+
+Z3 UNSAT is a backend report. No proof is present, so `Require` with
+`UNSATProofChecked` returns `sat.ErrGuarantee`. Runner initialization, pinning,
+query directories, artifact retention, the default 30-second timeout and process
+control otherwise match the SAT runner above, with no checker. The `Runner` has no
+`Identity` or `ReadArtifact`. A pinned Z3 must run from a private copy, so a build
+that loads a shared library relative to its own path does not work.
+
 ## JSON CLI
 
 Commands: project, reconstruct, encode, decode, solve, solve-finite, pin-tools.
@@ -232,7 +292,7 @@ its digests during tool preparation. `pin-tools` does not apply the runner's
 64 MiB executable limit, so an oversized tool pins successfully and fails at
 solve time with LIMIT. The standalone CLI does not read tool environment
 variables. The Go examples and the `resolverintegration` tests read the four `CALX_*` tool
-variables themselves.
+variables themselves; the `linear/z3` tests read `CALX_Z3` and `CALX_Z3_DIGEST`.
 Old tool-input names are not aliases. Help exits 0 without reading input;
 unknown flags, malformed flag syntax and missing required flags exit 2 on stderr
 before input is read. CLI digest flags are parsed before input is read. Native

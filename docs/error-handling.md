@@ -25,6 +25,20 @@ error. CLI cancellation/deadline codes take precedence over INCONCLUSIVE. The
 UNKNOWN status is also the initial state before any backend answer, so status
 alone does not identify the error cause. None of these errors imply UNSAT.
 
+`linear/z3` returns the same Go errors for the same conditions, plus
+`linear.ErrUnsupported` for a relation outside the profile. A failed Z3 process
+exit is `sat.ErrProtocol`.
+
+## Conflict localization errors
+
+`mus.Shrink` returns `mus.ErrInput` for a malformed oracle or option,
+`mus.ErrSatisfiable` when the complete set has no conflict and `mus.ErrBudget`
+when the check budget ends. It returns an Oracle's error and a `Require` failure
+unchanged, so `sat.ErrInconclusive` and `sat.ErrGuarantee` stay discoverable.
+`mus.ByOrigin` joins `mus.ErrInput` with `sat.ErrInput` for a malformed formula.
+An error does not discard a conflict already established; see
+[contracts](contracts.md#conflict-localization).
+
 ## Variable roles
 
 VariableKind has the constants StateVariable, ActionVariable and

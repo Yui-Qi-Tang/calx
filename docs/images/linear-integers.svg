@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920" role="img" aria-labelledby="title desc"><title id="title">Reading linear integer problems</title><desc id="desc">Filled dots are the integers that satisfy every constraint. Each answer below came from the pinned Z3.</desc><defs>
+<marker id="gray" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#64748b"/></marker>
+<marker id="blue" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#2563eb"/></marker>
+<marker id="teal" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#0f766e"/></marker>
+<marker id="red" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b91c1c"/></marker>
+<marker id="amber" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b45309"/></marker>
+</defs><g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+<rect width="1600" height="920" fill="#f8fafc"/>
+<text x="40" y="55" font-size="32" fill="#0f172a" font-weight="700" text-anchor="start">Reading linear integer problems</text>
+<text x="40" y="94" font-size="18" fill="#334155" font-weight="400" text-anchor="start">Filled dots are the integers that satisfy every constraint. Each answer below came from the pinned Z3.</text>
+<rect x="40" y="130" width="745" height="330" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="66" y="170" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start">A range</text>
+<text x="66" y="200" font-size="17" fill="#334155" font-weight="400" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">x &gt;= 3,  x &lt;= 5</text>
+<rect x="659" y="152" width="100" height="38" rx="19" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.5"/>
+<text x="709" y="177" font-size="17" fill="#0f766e" font-weight="700" text-anchor="middle">SAT</text>
+<text x="66" y="436" font-size="17" fill="#334155" font-weight="400" text-anchor="start">Z3 returned x = 3. Any of 3, 4, 5 passes the model check.</text>
+<line x1="76" y1="320" x2="744" y2="320" stroke="#64748b" stroke-width="2"/>
+<line x1="90" y1="313" x2="90" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="90" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">0</text>
+<line x1="170" y1="313" x2="170" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="170" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">1</text>
+<line x1="250" y1="313" x2="250" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="250" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">2</text>
+<line x1="330" y1="313" x2="330" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="330" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">3</text>
+<line x1="410" y1="313" x2="410" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="410" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">4</text>
+<line x1="490" y1="313" x2="490" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="490" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">5</text>
+<line x1="570" y1="313" x2="570" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="570" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">6</text>
+<line x1="650" y1="313" x2="650" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="650" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">7</text>
+<line x1="730" y1="313" x2="730" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="730" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">8</text>
+<rect x="330" y="250" width="414" height="16" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="330" y="240" font-size="15" fill="#2563eb" font-weight="700" text-anchor="start">x &gt;= 3</text>
+<rect x="76" y="276" width="414" height="16" rx="4" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+<text x="490" y="306" font-size="15" fill="#b45309" font-weight="700" text-anchor="end">x &lt;= 5</text>
+<circle cx="90" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="170" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="250" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="330" cy="320" r="10" fill="#0f766e" stroke="none" stroke-width="2"/>
+<circle cx="410" cy="320" r="10" fill="#0f766e" stroke="none" stroke-width="2"/>
+<circle cx="490" cy="320" r="10" fill="#0f766e" stroke="none" stroke-width="2"/>
+<circle cx="570" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="650" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="730" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<rect x="815" y="130" width="745" height="330" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="841" y="170" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start">No overlap</text>
+<text x="841" y="200" font-size="17" fill="#334155" font-weight="400" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">x &gt;= 6,  x &lt;= 5</text>
+<rect x="1434" y="152" width="100" height="38" rx="19" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="1484" y="177" font-size="17" fill="#b91c1c" font-weight="700" text-anchor="middle">UNSAT</text>
+<text x="841" y="436" font-size="17" fill="#334155" font-weight="400" text-anchor="start">The two ranges share no number, so no assignment exists.</text>
+<line x1="851" y1="320" x2="1519" y2="320" stroke="#64748b" stroke-width="2"/>
+<line x1="865" y1="313" x2="865" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="865" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">0</text>
+<line x1="945" y1="313" x2="945" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="945" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">1</text>
+<line x1="1025" y1="313" x2="1025" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1025" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">2</text>
+<line x1="1105" y1="313" x2="1105" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1105" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">3</text>
+<line x1="1185" y1="313" x2="1185" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1185" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">4</text>
+<line x1="1265" y1="313" x2="1265" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1265" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">5</text>
+<line x1="1345" y1="313" x2="1345" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1345" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">6</text>
+<line x1="1425" y1="313" x2="1425" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1425" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">7</text>
+<line x1="1505" y1="313" x2="1505" y2="327" stroke="#64748b" stroke-width="2"/>
+<text x="1505" y="352" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">8</text>
+<rect x="1345" y="250" width="174" height="16" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="1345" y="240" font-size="15" fill="#2563eb" font-weight="700" text-anchor="start">x &gt;= 6</text>
+<rect x="851" y="276" width="414" height="16" rx="4" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+<text x="1265" y="306" font-size="15" fill="#b45309" font-weight="700" text-anchor="end">x &lt;= 5</text>
+<circle cx="865" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="945" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1025" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1105" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1185" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1265" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1345" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1425" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="1505" cy="320" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<rect x="40" y="480" width="745" height="390" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="66" y="520" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start">Integers only</text>
+<text x="66" y="550" font-size="17" fill="#334155" font-weight="400" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">2x = 1</text>
+<rect x="659" y="502" width="100" height="38" rx="19" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="709" y="527" font-size="17" fill="#b91c1c" font-weight="700" text-anchor="middle">UNSAT</text>
+<text x="66" y="846" font-size="17" fill="#334155" font-weight="400" text-anchor="start">Over the reals x = 1/2 works. Variables are integers, so nothing does.</text>
+<line x1="76" y1="695" x2="740" y2="695" stroke="#64748b" stroke-width="2"/>
+<line x1="90" y1="688" x2="90" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="90" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">-2</text>
+<line x1="196" y1="688" x2="196" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="196" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">-1</text>
+<line x1="302" y1="688" x2="302" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="302" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">0</text>
+<line x1="408" y1="688" x2="408" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="408" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">1</text>
+<line x1="514" y1="688" x2="514" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="514" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">2</text>
+<line x1="620" y1="688" x2="620" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="620" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">3</text>
+<line x1="726" y1="688" x2="726" y2="702" stroke="#64748b" stroke-width="2"/>
+<text x="726" y="727" font-size="15" fill="#334155" font-weight="400" text-anchor="middle">4</text>
+<circle cx="90" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="196" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="302" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="408" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="514" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="620" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="726" cy="695" r="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<circle cx="355.0" cy="695" r="10" fill="#fee2e2" stroke="#b91c1c" stroke-width="3"/>
+<line x1="355.0" y1="635" x2="355.0" y2="679" stroke="#b91c1c" stroke-width="2" marker-end="url(#red)"/>
+<text x="355.0" y="625" font-size="17" fill="#b91c1c" font-weight="700" text-anchor="middle">x = 1/2 is not an integer</text>
+<rect x="815" y="480" width="745" height="390" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="841" y="520" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start">Two variables</text>
+<text x="841" y="550" font-size="17" fill="#334155" font-weight="400" text-anchor="start" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">x + y = 4,  x - y = 2</text>
+<rect x="1434" y="502" width="100" height="38" rx="19" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.5"/>
+<text x="1484" y="527" font-size="17" fill="#0f766e" font-weight="700" text-anchor="middle">SAT</text>
+<text x="841" y="846" font-size="17" fill="#334155" font-weight="400" text-anchor="start">The lines cross once, at x = 3, y = 1, which Z3 returned.</text>
+<line x1="1075" y1="798" x2="1075" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1075" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">0</text>
+<line x1="1111" y1="798" x2="1111" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1111" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">1</text>
+<line x1="1147" y1="798" x2="1147" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1147" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">2</text>
+<line x1="1183" y1="798" x2="1183" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1183" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">3</text>
+<line x1="1219" y1="798" x2="1219" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1219" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">4</text>
+<line x1="1255" y1="798" x2="1255" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1255" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">5</text>
+<line x1="1291" y1="798" x2="1291" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1291" y="822" font-size="14" fill="#334155" font-weight="400" text-anchor="middle">6</text>
+<line x1="1075" y1="798" x2="1291" y2="798" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="803" font-size="14" fill="#334155" font-weight="400" text-anchor="end">0</text>
+<line x1="1075" y1="762" x2="1291" y2="762" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="767" font-size="14" fill="#334155" font-weight="400" text-anchor="end">1</text>
+<line x1="1075" y1="726" x2="1291" y2="726" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="731" font-size="14" fill="#334155" font-weight="400" text-anchor="end">2</text>
+<line x1="1075" y1="690" x2="1291" y2="690" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="695" font-size="14" fill="#334155" font-weight="400" text-anchor="end">3</text>
+<line x1="1075" y1="654" x2="1291" y2="654" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="659" font-size="14" fill="#334155" font-weight="400" text-anchor="end">4</text>
+<line x1="1075" y1="618" x2="1291" y2="618" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="623" font-size="14" fill="#334155" font-weight="400" text-anchor="end">5</text>
+<line x1="1075" y1="582" x2="1291" y2="582" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1061" y="587" font-size="14" fill="#334155" font-weight="400" text-anchor="end">6</text>
+<text x="1307" y="804" font-size="16" fill="#334155" font-weight="700" text-anchor="start">x</text>
+<text x="1071" y="568" font-size="16" fill="#334155" font-weight="700" text-anchor="start">y</text>
+<line x1="1075" y1="654" x2="1219" y2="798" stroke="#2563eb" stroke-width="3"/>
+<text x="1087" y="646" font-size="15" fill="#2563eb" font-weight="700" text-anchor="start">x + y = 4</text>
+<line x1="1147" y1="798" x2="1291" y2="654" stroke="#b45309" stroke-width="3"/>
+<text x="1283" y="644" font-size="15" fill="#b45309" font-weight="700" text-anchor="end">x - y = 2</text>
+<circle cx="1183" cy="762" r="10" fill="#0f766e" stroke="none" stroke-width="2"/>
+<text x="1207" y="768" font-size="16" fill="#0f766e" font-weight="700" text-anchor="start">(3, 1)</text>
+</g></svg>

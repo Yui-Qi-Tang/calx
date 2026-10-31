@@ -1,7 +1,8 @@
 # Internal execution: graph → matrix → logic resolver → result
 
 Sections 1–4 follow the v0 finite route. Section 5 follows the v0.1 automaton
-and lattice-gas route, which reuses the same solver and checks. Start with the
+and lattice-gas route, which reuses the same solver and checks. Sections 6 and 7
+follow conflict localization and the linear integer route. Start with the
 overview, then follow the matrix compiler, solver/checker and result-decoding
 paths.
 The worked computation is the README example: one action changes `state=off`
@@ -14,6 +15,8 @@ to `state=on`, with an exact horizon of one.
 | [3. Resolver internals](#3-logic-resolver-internals) | Pinned tools, execution, SAT/UNSAT/UNKNOWN branches and retained artifacts |
 | [4. Result to trace](#4-result-to-trace) | Error handling, answer-specific guarantees and decoding with the original Encoding |
 | [5. Automata and lattice gases](#5-automata-and-lattice-gases) | `automaton.System` to CNF, conserved-quantity queries, replay, and forward simulation with `lga` |
+| [6. Conflict localization](#6-conflict-localization) | `mus.Oracle`, the check sequence and what each stop leaves |
+| [7. Linear integers](#7-linear-integers) | `linear.Problem` to SMT-LIB, the two Z3 processes and the model check |
 
 ## 1. Complete flow
 
@@ -317,6 +320,83 @@ the resulting states over blocks.
 [Simulate and Replay](../automaton/automaton.go), [lga HPP](../lga/hpp.go),
 [lga FHP](../lga/fhp.go), [bit-packed Run](../lga/packed.go).
 
+## 6. Conflict localization
+
+`mus.Shrink` wraps a backend instead of replacing one: it decides which subset to
+check next, and the caller's Oracle does each check. The
+[primer](mus-primer.md) follows a real run.
+
+![Six checks across five groups. Deleting clock-set and tv-on leaves UNSAT, so they are removed. Deleting each of the other three gives SAT, so they stay.](images/mus-shrink.svg)
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Shrink as mus.Shrink
+    participant Oracle as caller's Oracle
+    participant Runner as concrete runner
+    Caller->>Shrink: Oracle, Requirements, options
+    Shrink->>Oracle: Groups()
+    loop check 0 keeps all, then one group left out per check
+        Shrink->>Oracle: Check(ctx, step, keep)
+        Oracle->>Runner: Solve(ctx, unique ID, trial formula)
+        Runner-->>Oracle: Result, error
+        Oracle-->>Shrink: sat.Result, error
+        Note over Shrink: record the Step, then Require(want)
+    end
+    Shrink-->>Caller: Core, error
+```
+
+**Input to first check.** `Shrink` checks the context, validates the Oracle and
+options, and sets the budget to `Groups()+1` or to the `WithMaxChecks` value.
+`ByOrigin` has already validated the CNF and sorted its origins into groups.
+
+**Each check.** The Step is recorded before the error or requirement is examined, so
+`Steps` holds a failed check too. A nil error then means SAT or UNSAT, because
+`Require` rejects everything else.
+
+**Stopping.** A failure returns the Core as it stands, so `Groups` and `Witness` always
+describe the last UNSAT check. `ByOrigin` shares the original clauses and `Variables`
+with each trial. Solving and artifacts belong to the runner, so each check keeps its
+own query directory.
+
+**Source:** [Shrink](../mus/mus.go), [ByOrigin](../mus/origins.go).
+
+## 7. Linear integers
+
+`linear/z3` follows the same steps as [section 3](#3-logic-resolver-internals) and uses
+the same `internal/toolrun`, with these differences. The
+[primer](linear-primer.md#5-checking-the-answer) compares the guarantees.
+
+```mermaid
+flowchart TD
+    p["linear.Problem"] --> limits["CheckLimits: dimensions, shape, relations"]
+    limits --> dir["reserve the query directory"]
+    dir --> input["input.json, input.smt2"]
+    input --> first["solver process: z3 -smt2 input.smt2"]
+    first -->|unsat| unsat["Status UNSAT, no proof"]
+    first -->|unknown| unknown["ErrInconclusive"]
+    first -->|sat| model["model process: z3 -smt2 model.smt2"]
+    model --> parse["parse the fixed get-value form"]
+    parse --> eval["CheckAssignment: exact integers"]
+    eval --> checked["Model checked, target = InputDigest"]
+    first -->|anything else| protocol["ErrProtocol"]
+```
+
+**One deadline.** `Limits.Timeout` covers both processes together. A nonzero exit from
+either is `sat.ErrProtocol`.
+
+**Two processes.** The first answers. The second repeats the script with `get-value`
+for every variable. It need not reproduce the first process's model, because
+`CheckAssignment` judges whatever it returns. It must still print `sat`, and each
+variable exactly once.
+
+**Evidence.** Files are written as in section 3. Once the query directory exists,
+`outcome.json` is written even after a failure. Without a proof step there is no `proof.drat` or checker record, and
+`CheckerDigest` stays empty.
+
+**Source:** [Problem](../linear/problem.go), [Runner.Solve](../linear/z3/runner.go),
+[model parser](../linear/z3/parse.go).
+
 ## Reproduce the non-solver stages
 
 From the repository root:
@@ -334,3 +414,7 @@ UNSAT executions with explicitly pinned local tools.
 
 For the automaton route, `go run ./examples/lga` runs a forward simulation and
 `go test -run ExampleCompile ./automaton` checks the 72-clause example above.
+
+For conflict localization, `go test -run 'ExampleShrink|TestMUSPrimer' ./mus` runs
+the checks above with an enumerator in place of a solver. For the linear route,
+`go test -run TestLinearPrimer ./linear` checks the encoding and the worked problems.

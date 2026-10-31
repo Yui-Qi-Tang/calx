@@ -1,5 +1,38 @@
 # Validation
 
+## Conflict localization and linear integers — 2026-10-31
+
+`mus`, `linear` and `linear/z3` were added on Go 1.27.3, on macOS arm64, with Z3
+5.3.3 from Homebrew and the pinned CaDiCaL and DRAT-trim.
+
+| Check | Method | Result |
+| --- | --- | --- |
+| `make verify`, `make race` | Run locally | Exit 0 |
+| `mus` against every acceptance formula | The core must be among the irreducible subsets found by enumerating all subsets with the independent oracle | Pass, 520 formulas |
+| `mus` on real tools | One formula with two disjoint conflicts, checked SAT and UNSAT | Pass |
+| `linear/z3` on real tools | 512 Boolean formulas against the independent oracle, 10 linear cases with recorded statuses, including values beyond 64 bits | Pass |
+| `mus` over `linear/z3` | Groups are constraints. Requiring a checked proof fails with `sat.ErrGuarantee`; accepting unchecked UNSAT finds the conflict | Pass |
+| `linear.WriteSMTLIB` and `input.json` | Exact byte comparison | Pass |
+| Test strength | 14 hand-written mutants of `mus`, `linear` and `linear/z3` on a copy of the repository | All killed |
+| README examples | Source of all 10 example programs compared byte for byte with the README, without their package comments. All 10 run, with real tools where needed, and output compared with the README where it is stable | Pass |
+| Primer snippets | Go snippets compiled in a throwaway module, not run | Pass |
+| `docs/mus-primer.md`, `docs/linear-primer.md` | Tables taken from real solver runs; `mus/primer_test.go` and `linear/primer_test.go` recheck them with an enumerator, and the Z3 acceptance rechecks the unique model | Pass |
+| Primer images | SVG parsed by xmllint, rendered with rsvg-convert and inspected by eye | Pass |
+| Links in README and docs | Script resolving relative paths and heading anchors | Pass, 158 links |
+| Docs against the new packages | Script checks that exported names appear in the docs and that package-qualified references exist. `go list` imports compared with the architecture text. Prose compared by reading | Differences fixed |
+| Real tools on Linux amd64 | CI run on merge commit `0f01d6b`: Z3 5.3.3 release checksum verified, and `sat/cadical`, `lga`, `internal/cli`, `mus` and `linear/z3` ran with the tools. The release binary runs from a private copy within the 64 MiB limit | Pass |
+| New Mermaid diagrams | Parsed and rendered with Mermaid 11.4.1 in a browser; output not inspected by eye | Pass, 10 diagrams |
+
+Statement coverage is 100% for `mus`, 94.9% for `linear` and 89.7% for
+`linear/z3`, without the integration tests.
+
+Not covered: the rendered Mermaid output was not viewed, and GitHub's Mermaid version
+may differ. The architecture dependency diagram was rendered from its changed lines
+only. Hand-written mutants are a sample, not a mutation score. The linear cases
+are a fixed set, not a general reliability claim, and Z3 UNSAT answers were
+compared with recorded statuses and the enumerating oracle, not independently
+proved. Monotonicity of a caller's Oracle is assumed, not checked.
+
 ## Consumer check removed — 2026-10-31
 
 `calx-check-consumers` was a pre-adoption tool. It read external consumer
