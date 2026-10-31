@@ -231,8 +231,7 @@ The manifest is not authenticated. Executable bytes are still checked against
 its digests during tool preparation. `pin-tools` does not apply the runner's
 64 MiB executable limit, so an oversized tool pins successfully and fails at
 solve time with LIMIT. The standalone CLI does not read tool environment
-variables, and neither does `calx-check-consumers`, which requires `--tools`.
-The Go examples and the `resolverintegration` tests read the four `CALX_*` tool
+variables. The Go examples and the `resolverintegration` tests read the four `CALX_*` tool
 variables themselves.
 Old tool-input names are not aliases. Help exits 0 without reading input;
 unknown flags, malformed flag syntax and missing required flags exit 2 on stderr

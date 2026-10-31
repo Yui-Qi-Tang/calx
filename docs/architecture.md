@@ -3,9 +3,8 @@
 Calx is one module with separately importable packages and a thin CLI. Public
 packages depend on no consumer. The current implementation has no
 third-party Go dependency. `sat/cadical` uses `internal/toolrun` and `sat`;
-`finite`, `automaton`, `sat/cadical`, the internal tool packages, the CLI
-package and `cmd/calx-check-consumers` also use `internal/jsoncompat` for their
-JSON bytes;
+`finite`, `automaton`, `sat/cadical`, the internal tool packages and the CLI
+package also use `internal/jsoncompat` for their JSON bytes;
 `finite` and `automaton` use `sat`; `lga` uses only `automaton`; `incidence` is
 independent of all of them. The leaf package `digest` owns content identifiers,
 their current algorithm and textual format.
@@ -21,8 +20,8 @@ and CLI output therefore did not change with the engine. `internal/jsoninput`
 decodes CLI input strictly with v2 in a single token scan plus one unmarshal;
 where fields are required, a presence check unmarshals the top-level object
 again.
-`internal/toolmanifest` owns the `calx-tools/v1` manifest shared by `calx` and
-`calx-check-consumers`.
+`internal/toolmanifest` owns the `calx-tools/v1` manifest that `calx` reads and
+writes.
 
 ## Package dependencies
 
@@ -59,8 +58,8 @@ flowchart TD
 ```
 
 `internal/jsoncompat`, imported by `finite`, `automaton`, `sat/cadical`,
-`internal/toolrun`, `internal/toolmanifest`, `internal/consumercheck`, the CLI
-and `cmd/calx-check-consumers`, is left out of the diagram.
+`internal/toolrun`, `internal/toolmanifest` and the CLI, is left out of the
+diagram.
 
 ## Data flow
 

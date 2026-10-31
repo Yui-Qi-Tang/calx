@@ -1,5 +1,17 @@
 # Validation
 
+## Consumer check removed — 2026-10-31
+
+`calx-check-consumers` was a pre-adoption tool. It read external consumer
+checkouts, some of which CI cannot reach, and it broke when a consumer moved on.
+The consumer that imports Calx now verifies each new version with its own tests
+when it updates its pin. Records below still describe the check as it was.
+
+| Change | Evidence |
+| --- | --- |
+| The 13 frozen formulas move to `sat/cadical/testdata/formulas`, without comments, and `TestRealTools` solves them against their recorded statuses | The expected statuses are copied from the removed manifest. Flipping one expected status fails the test. |
+| The check's finite CLI and typed-input cases move to `internal/cli` | `TestSolveFiniteWithRealTools` runs `solve-finite` with real tools; `TestEncodeRejectsTypedValues` needs no solver. |
+
 ## Finite encoding limits — 2026-10-31
 
 Observed locally on darwin/arm64 (Apple M5 Max) with Go 1.27.3, on a temporary
@@ -382,10 +394,9 @@ At this checkpoint it also checked the now-removed external graph example module
 Source snapshots from external
 consumers and ignored historical artifacts are not part of that source lint scope.
 
-The Go-only compatibility scope is documented in [compatibility](compatibility.md).
-It preserves historical experiment inputs without copying or executing Python.
-It does not claim that frozen formulas validate a newly executed lowering or
-replay.
+The Go-only compatibility check was removed on 2026-10-31. It preserved
+historical experiment inputs without copying or executing Python, and it did not
+claim that frozen formulas validate a newly executed lowering or replay.
 The four formal consumers remain unchanged.
 
 Current local evidence (ignored):
