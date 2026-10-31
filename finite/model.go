@@ -51,21 +51,24 @@ type Query struct {
 	Blocked [][]string
 }
 
-// v1 support limits: models have at most 16 fields, 256 values per field, 1024
-// actions and 256 forbidden patterns; horizons are 0..4095; names are at most
-// 200 bytes. The number of Cartesian states is not limited: encoding never
-// enumerates states, and the encoding budget bounds its size. maxActions and
-// maxValues still have to be finite, because Project allocates dense
-// action-by-coordinate matrices before the budget is checked. Limits are not
-// query semantics, so raising them keeps Profile while accepted models keep
-// their encoding.
+// v1 support limits: models have at most 256 fields, 256 values per field, 4096
+// coordinates (field/value pairs) in total, 1024 actions and 256 forbidden
+// patterns; horizons are 0..4095; names are at most 200 bytes. The number of
+// Cartesian states is not limited: encoding never enumerates states, and the
+// encoding budget bounds its size. maxActions and maxCoordinates still have to
+// be finite, because Project allocates dense action-by-coordinate matrices
+// before the budget is checked; they bound that allocation, not maxFields and
+// maxValues together, so wide models of few values do not raise the worst case.
+// Limits are not query semantics, so raising them keeps Profile while accepted
+// models keep their encoding.
 const (
-	maxFields    = 16
-	maxValues    = 256
-	maxActions   = 1024
-	maxForbidden = 256
-	maxHorizon   = 4095
-	maxNameBytes = 200
+	maxFields      = 256
+	maxValues      = 256
+	maxCoordinates = 4096
+	maxActions     = 1024
+	maxForbidden   = 256
+	maxHorizon     = 4095
+	maxNameBytes   = 200
 )
 
 // Option changes the encoding budget of Compile and reports an invalid value.
@@ -143,9 +146,13 @@ func (m Model) Validate() error {
 	if len(m.Fields) == 0 || len(m.Fields) > maxFields || len(m.Actions) == 0 || len(m.Actions) > maxActions || len(m.Forbidden) > maxForbidden {
 		return fmt.Errorf("%w: model bounds", ErrInput)
 	}
+	coordinates := 0
 	for f, vs := range m.Fields {
 		if f == "" || !utf8.ValidString(f) || len(f) > maxNameBytes || len(vs) == 0 || len(vs) > maxValues {
 			return ErrInput
+		}
+		if coordinates += len(vs); coordinates > maxCoordinates {
+			return fmt.Errorf("%w: model bounds", ErrInput)
 		}
 		seen := map[string]bool{}
 		for _, v := range vs {
