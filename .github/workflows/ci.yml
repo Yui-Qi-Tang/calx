@@ -23,7 +23,6 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # The consumer check needs consumer checkouts, so it stays local.
       - run: make verify
       - run: make race
 
@@ -65,4 +64,4 @@ jobs:
             echo "CALX_DRAT_DIGEST=$(sha256sum "$checker" | cut -d' ' -f1)"
             echo "CALX_ARTIFACTS=$RUNNER_TEMP/artifacts"
           } >> "$GITHUB_ENV"
-      - run: go test -tags resolverintegration -count=1 ./sat/cadical/ ./lga/
+      - run: go test -tags resolverintegration -count=1 ./sat/cadical/ ./lga/ ./internal/cli/
