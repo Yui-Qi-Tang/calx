@@ -213,7 +213,7 @@ for horizon 8 with nothing blocked:
 | The Cartesian state limit is removed, `maxActions` goes from 64 to 1,024 and `maxValues` from 64 to 256; `Profile` stays v1 | `TestAcceptedEncodingsAreUnchanged` pins the digest and DIMACS hash of three models, including 4,096 states with 64 actions, captured from the code before the change. `TestDomainProductIsNotALimit`, `TestActionLimit` (with the `Project` and `Matrix.Model` round trip at 65, 243 and 1,024 actions, and rejection of 1,025), `TestValueLimit` (65, 115 and 256 values, and rejection of 257) and `TestOverBudgetIsAnEncodingLimit` all failed before the change. Setting either limit one above or below and changing `Profile` each fail a test. `make verify` and `make race` pass, as do the real-tool tests in `sat/cadical` and `lga`. |
 | The CLI accepts the wider models | `solve-finite` with the pinned tools, previous and new binary, on seven models. All past the old limits fail on the previous binary. On the new one, 243 actions over 4,140 states, 88 actions over 105,600, 16 fields of 64 and 1,024 actions at horizon 1 are SAT, with traces replayed independently in Python; 8,192 states is UNSAT; 1,025 actions keeps `INPUT_OR_EXECUTION`; 1,024 actions at horizon 8 now returns `LIMIT`. Encoding `examples/finite.json` is byte-identical on both binaries. |
 | Frozen planning-consumer solver tests removed from `sat/cadical` | They exercised a test-local copy of a contract that consumer has replaced with `sat.CNF`. Removing them and their fixtures loses none of the package's 132 coverage blocks, measured without the `resolverintegration` tag: `contract_test.go` and `runner_test.go` cover the same errors, limits, artifacts and metadata with generic formulas, and `acceptance.Cases()` covers real SAT and UNSAT runs. |
-| Consumer conformance | The planning-consumer step had stopped building at the commit before this change: its adapter fixture expected a `CNF` type and an older `encode` signature that the consumer has replaced. The fixture is removed, so this check no longer compares exact DIMACS or runs that consumer's search; the consumer's own tests cover its search. The step still builds the consumer's planning code against Calx and compares topology. The full check passes every step (`artifacts/consumer-check-20261031-02/`). |
+| Consumer conformance | The planning-consumer step had stopped building at the commit before this change: its adapter fixture expected a `CNF` type and an older `encode` signature that the consumer has replaced. The fixture is removed, so this check no longer compares exact DIMACS or runs that consumer's search; the consumer's own tests cover its search. The step still builds the consumer's planning code against Calx and compares topology. The full check passes every step. |
 
 ## Functional budget options — 2026-10-30
 
@@ -224,11 +224,11 @@ Observed locally on darwin/arm64 with Go 1.27.3.
 | `automaton.Compile` and `finite.Compile` take `...Option`; each option checks its own value and returns `ErrInput` below 1 | `TestBudgetOptions` in both packages: defaults equal the `sat.Limits` defaults, a later option wins, zero and negative values fail, and the first invalid option's error is returned |
 | `automaton.Compile` cancellation | `TestCompileStopsWhenCanceledMidway` cancels during rule tables and during clause generation; with an already canceled context, cancellation is reported before validation. Removing any one of the three context checks fails a test. |
 | CLI `options` decoded into its own request struct and converted to finite options | `TestEncodeOptions`; treating zero as an explicit value fails it. Of 24 encode/decode option cases compared with the previous binary, 20 are identical and the four negative-value cases keep code `INPUT_OR_EXECUTION` with a new message (for example `invalid finite input: max variables -1, want at least 1`). The v2 JSON type-error wording ("cannot" or "unable to") varies between runs in both binaries and was normalized. |
-| Consumer conformance and real tools | Consumer check passed every check (`artifacts/consumer-check-20261030-01/`); real-tool tests in `sat/cadical` and `lga` pass |
+| Consumer conformance and real tools | Consumer check passed every check; real-tool tests in `sat/cadical` and `lga` pass |
 | `automaton` steps bounded only by the budget | `TestStepsAreBoundedOnlyByBudget`: 5,000 steps compile and simulate; `Steps: math.MaxInt` returns `ErrEncodingLimit` under the default and the maximal budget, because the check divides by the per-step size instead of multiplying. `TestEncodingSizeMatchesFormula` still matches the built formula. The overflow mutant (multiplying again) was not run, since it could allocate without bound. |
 | JSON tags removed from `Bit`, `Term` and `Trajectory`; the identity uses private structs | Six HPP, FHP and wall-lattice digests captured before the change are identical after it. A temporary test compared the digest with a copy of the old identity, including a cell with nil inputs and an empty `Violates`, and caught a mutant that turned nil inputs into `[]`. |
-| JSON tags removed from all `finite` types; the CLI decodes requests into its own `modelInput`/`actionInput` and writes `variableOutput`/`traceOutput`; the digest uses private structs | 24 CLI cases (encode, decode, solve-finite with the real tools; nil and empty `forbidden`, `frame` and `blocked`; horizon 0; UNSAT; four malformed inputs) are identical to the previous binary after normalizing the v2 JSON wording, as is the decode error output. `examples/matrix`, `compile`, `incidence`, `sat` and `solve` print identical output; `matrix` and `solve` now define their own JSON structs. The CNF metadata format is pinned by `TestMetadataMatchesMarshal` against a test-local tagged struct. The consumer check first failed because it read CLI output into `finite.Trace`; with its own struct it passes every check (`artifacts/consumer-check-20261030-03/`). |
-| `finite.Query.Profile` removed (the CLI checks `profile` itself; the digest still records `finite.Profile`); `sat.Result.Profile` removed; JSON tags removed from `incidence` and `sat` types, with the CLI, `input.json`, `outcome.json`, `examples/incidence` and the consumer check each using their own structs | 35 CLI cases compared with the previous binary: project/reconstruct (including null, missing, unknown and duplicate inputs), solve with JSON and DIMACS input, encode, solve-finite and two profile errors. With timing-dependent artifacts masked, the only difference is the removed `"profile": "cnf/v0"` in 10 solve outputs and `outcome.json` files; encode output, query digests and `input.json` bytes are identical. `examples/compile`, `incidence`, `matrix`, `sat` and `solve` print identical output. `make verify`, `make race`, the real-tool tests in `sat/cadical` and `lga`, and the consumer check (`artifacts/consumer-check-20261030-04/`) pass. |
+| JSON tags removed from all `finite` types; the CLI decodes requests into its own `modelInput`/`actionInput` and writes `variableOutput`/`traceOutput`; the digest uses private structs | 24 CLI cases (encode, decode, solve-finite with the real tools; nil and empty `forbidden`, `frame` and `blocked`; horizon 0; UNSAT; four malformed inputs) are identical to the previous binary after normalizing the v2 JSON wording, as is the decode error output. `examples/matrix`, `compile`, `incidence`, `sat` and `solve` print identical output; `matrix` and `solve` now define their own JSON structs. The CNF metadata format is pinned by `TestMetadataMatchesMarshal` against a test-local tagged struct. The consumer check first failed because it read CLI output into `finite.Trace`; with its own struct it passes every check. |
+| `finite.Query.Profile` removed (the CLI checks `profile` itself; the digest still records `finite.Profile`); `sat.Result.Profile` removed; JSON tags removed from `incidence` and `sat` types, with the CLI, `input.json`, `outcome.json`, `examples/incidence` and the consumer check each using their own structs | 35 CLI cases compared with the previous binary: project/reconstruct (including null, missing, unknown and duplicate inputs), solve with JSON and DIMACS input, encode, solve-finite and two profile errors. With timing-dependent artifacts masked, the only difference is the removed `"profile": "cnf/v0"` in 10 solve outputs and `outcome.json` files; encode output, query digests and `input.json` bytes are identical. `examples/compile`, `incidence`, `matrix`, `sat` and `solve` print identical output. `make verify`, `make race`, the real-tool tests in `sat/cadical` and `lga`, and the consumer check pass. |
 | Failed `project`, `reconstruct` and `decode` report empty arrays (and `{}` for `relation_masks`) in `data` instead of nulls | `TestFailedCommandsReportEmptyData` covers all three; returning nulls from decode again fails it. Of the 35 CLI cases above, only the failed project and reconstruct outputs changed, plus one case that feeds the failed project output to reconstruct and now reconstructs an empty graph. |
 | Slices of known length are preallocated: `finite.Project` axes and rows, finite action and difference variables, quantity sides, packed planes, result artifact conversions; `automaton` preallocates its formula from `encodingSize` | `TestEncodingSizeMatchesFormula` now also requires capacity to equal length, so a wrong size estimate fails it. A temporary benchmark (rule 90, 200 cells, 200 steps, five runs each) went from about 8.3 ms and 52.3 MB to 4.2 ms and 18.7 MB per Compile, with allocations unchanged at about 321,000. The 35 CLI cases, `examples/compile`, `incidence`, `matrix`, `sat` and `lga` (with and without `-check`, compared with HEAD) are unchanged; `make verify`, `make race` and the real-tool tests pass. `Simulate` keeps growing its states one step at a time: preallocating `steps+1` would panic for very large or overflowing step counts. |
 | `Violates` compares every pair of consecutive times (`synchronous-boolean/v2`), so a quantity that changes and changes back is found; v1 compared only times 0 and Steps | Before the change, endpoints, time 0 against every time, and consecutive times were measured on 12 cases with the pinned tools and a 90 s limit ([table](#per-step-comparison-2026-10-30)). `TestViolationOracle` now requires a change at some step and adds rule 51 (every cell negated), where all 8 starts change and return; reverting to the endpoint comparison fails it. `TestEncodingSizeMatchesFormula` passes with the new counts (HPP 2×2, 3 steps, mass: 3,076 clauses). The real-tool test `hpp-walls-change-momentum` failed under v2 at first because it compared only the endpoints of the counterexample; its three counterexample checks now require a change at some step, as does `examples/lga`, which prints the mass at every time. All automaton digests change with the profile. `make verify`, `make race` and the real-tool tests pass. |
@@ -245,11 +245,11 @@ Observed locally on darwin/arm64 with Go 1.27.3.
 | JSON marshal of the same CNF | 8.99 ms with `jsoncompat` vs 9.09 ms with `encoding/json` (mean of 6 runs) |
 | `finite.Compile` metadata | Quoted names are cached; the output stays identical to `jsoncompat.Marshal` (`TestMetadataMatchesMarshal`). A/B on 6 fields × 4 values, 12 actions, horizon 8: 389 µs → 275 µs. |
 | `IsZero()` on `sat.Result`, `sat.Validation`, `cadical.Result`, `finite.Trace`, `automaton.Trajectory` | Zero values report true; each field alone makes them non-zero; Solve never returns a zero Result |
-| `internal/toolmanifest`; `calx-check-consumers --tools` | CLI manifest tests unchanged and passing; the consumer check rejects a missing or unreadable manifest. A full conformance run with `--tools` passed every check: two declaration-compiler consumers, the planning consumer (3 tests), 13 frozen experiment CNFs, the finite CLI and typed-input rejection (`artifacts/consumer-check-20261027-01/`). |
+| `internal/toolmanifest`; `calx-check-consumers --tools` | CLI manifest tests unchanged and passing; the consumer check rejects a missing or unreadable manifest. A full conformance run with `--tools` passed every check: two declaration-compiler consumers, the planning consumer (3 tests), 13 frozen experiment CNFs, the finite CLI and typed-input rejection. |
 | `go fix` (Go 1.27) | range-over-int, `errors.AsType`, `slices.Contains`, `strings.SplitSeq`, struct literals without the embedded field name; no fixes remain |
 | NOTICE removed | No references remain |
 | `sat.CNF.WriteDIMACS` uses `strconv.AppendInt` and a buffered writer | `TestWriteDIMACSMatchesFmt` compares the bytes with the original `fmt` writer on the true and false formulas, mixed signs, six-digit IDs and HPP 16×16×8; changing the line format fails it. Writer errors are still returned. The HPP DIMACS (3.8 MB) and `examples/compile` output match pre-change captures. Real CaDiCaL and DRAT-trim tests (`sat/cadical`, `lga`) pass. HPP 16×16×8 (131,072 clauses), old vs new in one run: to `io.Discard` 22.4 ms and 647 k allocations → 5.7 ms and 2; to a `bytes.Buffer` 23.9 ms → 6.2 ms. |
-| `sat.ReadDIMACS` reads lines as bytes and stores literals in one shared backing slice | `TestReadDIMACSMatchesReference` compares the result (`reflect.DeepEqual`, so nil and empty clauses differ) and the error text with the original implementation on HPP 16×16×8 and 33 accepted and rejected inputs (tabs, CRLF, `+1`, `-0`, U+00A0, `pcnf`, `px cnf`, extra fields, overflow), under five limit sets. `TestReadDIMACSClausesDoNotAlias` checks that appending to one clause leaves the next unchanged. Each of three mutations (no capacity cap, nil backing slice, prefix-only header test) fails a test. Real-tool tests pass; a second consumer conformance run, whose 13 frozen experiment CNFs enter through the CLI DIMACS reader, passed every check (`artifacts/consumer-check-20261027-02/`). HPP 16×16×8, old vs new in one run: 18.8 ms and 786 k allocations → 13.5 ms and 65. |
+| `sat.ReadDIMACS` reads lines as bytes and stores literals in one shared backing slice | `TestReadDIMACSMatchesReference` compares the result (`reflect.DeepEqual`, so nil and empty clauses differ) and the error text with the original implementation on HPP 16×16×8 and 33 accepted and rejected inputs (tabs, CRLF, `+1`, `-0`, U+00A0, `pcnf`, `px cnf`, extra fields, overflow), under five limit sets. `TestReadDIMACSClausesDoNotAlias` checks that appending to one clause leaves the next unchanged. Each of three mutations (no capacity cap, nil backing slice, prefix-only header test) fails a test. Real-tool tests pass; a second consumer conformance run, whose 13 frozen experiment CNFs enter through the CLI DIMACS reader, passed every check. HPP 16×16×8, old vs new in one run: 18.8 ms and 786 k allocations → 13.5 ms and 65. |
 
 Linux amd64: in Docker with `golang:1.27.3-bookworm` (image digest
 `sha256:972b4110ba0f…`, emulated on an arm64 Mac), `make verify` and
@@ -333,19 +333,17 @@ Phase 4 (FHP, walls, bit-packed runs) was checked the same day.
   triple rule and walls. The one surviving mutant, which removes the padding
   mask, has no observable effect, because stray padding bits only occur in
   planes that never rotate back. The mask stays as an invariant guard.
-- Nine real-tool queries passed in three consecutive runs
-  (`artifacts/lga-phase4-20261026-02/`).
+- Nine real-tool queries passed in three consecutive runs.
 
 Phase 5 (CLI tool manifest) was checked the same day: `internal/cli` tests
 cover pin-tools then solve, refusal to overwrite, non-executable and missing
 tools, nine malformed or conflicting manifests rejected before input, and a
 tool changed after pinning failing with a digest mismatch. With the real tools,
 `pin-tools` reproduced the pinned digests below, and `solve-finite --tools`
-returned a checked SAT with a trace (`artifacts/cli-tools-20261026-01/`).
+returned a checked SAT with a trace.
 
 The real-tool runs used the pinned CaDiCaL and DRAT-trim listed under
-historical evidence below. Artifacts: `artifacts/lga-phase3-20261026-02/` and
-the scaling probe `artifacts/lga-probe-20261026-01/`. The probe showed
+historical evidence below. A scaling probe showed
 whole-lattice proofs with 36 or more terms timing out at 90 s; see the
 [measurements](#measured-conservation-proofs-are-counting-arguments).
 
@@ -452,9 +450,7 @@ Observed locally on darwin/arm64 with Go 1.27.2:
 | Consumer checks | 1 + 1 declaration-compiler and 3 planning-consumer native-source tests and 13 frozen experiment CNFs PASS; generated source digest records independently rehashed |
 | Examples and documentation | Checked SAT/UNSAT examples PASS; 78 links/anchors and five embedded Go examples checked; both changed SVGs parsed, rendered and visually inspected |
 
-Evidence is retained in the ignored `artifacts/digest-type-20261020-zec90rod/`
-directory, including `summary.json`, real-tool events, CLI results, example
-outcomes and consumer logs. The frozen fixture manifest and external consumer
+The frozen fixture manifest and external consumer
 fields are translated at adapter boundaries; their original formats are
 preserved. This remains bounded consumer compatibility, not formal consumer
 migration or a fresh encoder/semantic-replay experiment.
@@ -479,9 +475,6 @@ Observed locally on darwin/arm64 with Go 1.27.2:
 | Consumer checks | 1 + 1 declaration-compiler and 3 planning-consumer native-source tests and 13 frozen experiment CNFs PASS; source identities rechecked |
 | Documentation | 76 local links/anchors and all five embedded Go examples match their sources |
 
-Local evidence is retained in the ignored
-`artifacts/digest-refactor-20261019-z_a6r7e3/` directory, including `summary.json`,
-real-tool events, example outcomes, command help and consumer results.
 The experiment-consumer scope remains frozen-input compatibility; this run
 does not execute its encoder or semantic replay. Formal consumer checkouts were not migrated.
 
@@ -511,20 +504,12 @@ The public accessor signatures now include errors; see
 maintained root packages and examples, including resolver-integration code.
 At this checkpoint it also checked the now-removed external graph example module.
 Source snapshots from external
-consumers and ignored historical artifacts are not part of that source lint scope.
+consumers are not part of that source lint scope.
 
 The Go-only compatibility check was removed on 2026-10-31. It preserved
 historical experiment inputs without copying or executing Python, and it did not
 claim that frozen formulas validate a newly executed lowering or replay.
 The four formal consumers remain unchanged.
-
-Current local evidence (ignored):
-
-- `artifacts/go-quality/verify-final.log`, `race-final.log` and `docs.json`
-- `artifacts/acceptance-go-errors-20261019/real-tools.jsonl`
-- `artifacts/go-consumers-final/results.json` and `source-manifest.json`
-- `artifacts/go-quality/example-sat.json`, `example-unsat.json` and `graph-example.json`
-- `artifacts/go-example-sat-final/` and `artifacts/go-example-unsat-final/`
 
 The tool pins below are unchanged. Codebase-memory was refreshed; its artifacts
 remain ignored. The SVGs are deliberately excluded by the indexer and were
@@ -554,7 +539,7 @@ scope/currentness/row-level-security readers. Planning-consumer conformance
 does not establish full product CLI/governance deployment. The second
 experiment series retains its existing signed/copy encoder; only its CNF is
 sent to Calx. No claim is made about all experiment profiles or new
-experimental outcomes.
+experimental outcomes. Consumers were not edited or switched.
 
 Pinned tools used in the actual-tool checks:
 
@@ -579,26 +564,7 @@ checks do not establish arbitrary-scale performance or general solver reliabilit
   stopped because `zip(strict=True)` requires newer Python. Attempt 02
   used Python 3.14.8 and all selected boundaries passed. At that checkpoint the
   legacy harness checked its Python prerequisite before creating output. The
-  current command is Go-only; original attempt 01 is retained.
+  current command is Go-only.
 - The initial parallel full race run hit the inherited one-second shell fixture
   deadline in TestArtifactArchivalBoundary. The full run passed with package
   serialization. No assertion, solver timeout or fixture timeout was relaxed.
-
-## Local evidence
-
-These paths are intentionally ignored and are not included in a source clone:
-
-- `artifacts/verify.log`
-- `artifacts/race.log` (initial failure) and `artifacts/race-serial.log` (PASS)
-- `artifacts/acceptance-20261018/` (earlier 522-case run)
-- `artifacts/acceptance-final-20261018/` (final 522-case run)
-- `artifacts/consumers-20261018-01/` and `artifacts/consumers-20261018-02/`
-- `artifacts/source-manifest.json` and `artifacts/summary.json`
-
-Exact selected consumer source hashes are retained per conformance run.
-Consumers were not edited or switched.
-
-Codebase-memory is indexed with a persisted local graph; its entire
-`.codebase-memory/` directory is ignored. Coverage checks are best-effort and do
-not prove completeness. Protobuf, SMT and expanded model profiles remain outside
-this implemented v0 scope.
