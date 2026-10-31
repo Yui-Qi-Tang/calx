@@ -79,6 +79,14 @@ func TestEncodeRequiresExplicitHorizonAndProfile(t *testing.T) {
 		}
 	}
 }
+func TestEncodeRejectsTypedValues(t *testing.T) {
+	raw := `{"model":{"fields":{"x":[false,true]},"actions":[]},"query":{"profile":"categorical-simple-first-hit/v1","start":{"x":false},"goal":{"x":true},"horizon":1}}`
+	status, doc := call(t, []string{"encode"}, raw)
+	if status != 1 || string(doc["outcome"]) != `"ERROR"` {
+		t.Fatalf("status %d, outcome %s", status, doc["outcome"])
+	}
+}
+
 func TestEncodeOptions(t *testing.T) {
 	raw := `{"model":{"fields":{"x":["a","b"]},"actions":[{"id":"ab","guard":{"x":"a"},"effect":{"x":"b"},"frame":[]}]},"query":{"profile":"categorical-simple-first-hit/v1","start":{"x":"a"},"goal":{"x":"b"},"horizon":1}%s}`
 	for options, want := range map[string]string{

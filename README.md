@@ -29,7 +29,6 @@ independently.
 | [Finite model primer](docs/finite-primer.md) | A picture-based introduction to finite models, queries and their CNF encoding |
 | [Automata primer](docs/automata-primer.md) | A picture-based introduction to automata, their CNF encoding and Garden of Eden states |
 | [Lattice gas primer](docs/lga-primer.md) | A picture-based introduction to HPP and FHP lattice gases and the questions a solver can answer about them |
-| [Consumer conformance](docs/compatibility.md) | The bounded compatibility check against consumer sources |
 | [Validation log](docs/validation.md) | Dated verification records and retained evidence |
 
 ## Library examples
@@ -698,12 +697,7 @@ go test -tags resolverintegration -count=1 -run TestRealTools ./sat/cadical ./lg
 The `lga` tests prove HPP and FHP conservation laws, find counterexamples for
 deliberately broken rules, and check walls and chirality.
 
-[Consumer conformance](docs/compatibility.md) exercises selected external consumer
-Go source snapshots and frozen CNF fixtures in fresh ignored directories.
-The compatibility command is implemented in Go; it does not require Python.
-The planning consumer imports Calx directly; the other consumers are checked at
-selected boundaries and have not adopted it. [Validation](docs/validation.md)
-records the observed scope and limitations.
+[Validation](docs/validation.md) records the observed scope and limitations.
 
 ## Current limitations
 
@@ -717,10 +711,9 @@ records the observed scope and limitations.
   [measured results](docs/validation.md#per-step-comparison-2026-10-30).
 - Solving relies on the external pinned CaDiCaL and DRAT-trim. Calx contains
   no solver or proof checker of its own.
-- Target platforms are macOS arm64 and Linux amd64. Consumer conformance has
-  run on macOS arm64 only. On Linux amd64, `make verify`, `make race` and the
-  real-tool tests pass in Docker, with CaDiCaL 3.0.1 and DRAT-trim built from
-  upstream sources. Windows is not a target.
+- Target platforms are macOS arm64 and Linux amd64. On Linux amd64, `make
+  verify`, `make race` and the real-tool tests pass in CI, with CaDiCaL 3.0.1
+  and DRAT-trim built from upstream sources. Windows is not a target.
 
 ## Requirements and version
 
