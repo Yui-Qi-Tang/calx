@@ -81,7 +81,7 @@ func Project(model Model) (Matrix, error) {
 
 // actions reconstructs rules after validating axes and dimensions.
 func (m Matrix) actions() ([]Action, error) {
-	if len(m.Fields) == 0 || len(m.Fields) > maxFields || len(m.ActionIDs) == 0 || len(m.ActionIDs) > maxActions || len(m.Coordinates) > maxFields*maxValues {
+	if len(m.Fields) == 0 || len(m.Fields) > maxFields || len(m.ActionIDs) == 0 || len(m.ActionIDs) > maxActions || len(m.Coordinates) > maxCoordinates {
 		return nil, ErrInput
 	}
 	fields := map[string]bool{}
