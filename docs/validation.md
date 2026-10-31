@@ -19,6 +19,7 @@
 | Primer images | SVG parsed by xmllint, rendered with rsvg-convert and inspected by eye | Pass |
 | Links in README and docs | Script resolving relative paths and heading anchors | Pass, 151 links |
 | Docs against the new packages | Script checks that exported names appear in the docs and that package-qualified references exist. `go list` imports compared with the architecture text. Prose compared by reading | Differences fixed |
+| Real tools on Linux amd64 | CI run on merge commit `0f01d6b`: Z3 5.3.3 release checksum verified, and `sat/cadical`, `lga`, `internal/cli`, `mus` and `linear/z3` ran with the tools. The release binary runs from a private copy within the 64 MiB limit | Pass |
 | New Mermaid diagrams | Parsed and rendered with Mermaid 11.4.1 in a browser; output not inspected by eye | Pass, 10 diagrams |
 
 Statement coverage is 100% for `mus`, 94.9% for `linear` and 89.7% for
@@ -26,9 +27,7 @@ Statement coverage is 100% for `mus`, 94.9% for `linear` and 89.7% for
 
 Not covered: the rendered Mermaid output was not viewed, and GitHub's Mermaid version
 may differ. The architecture dependency diagram was rendered from its changed lines
-only. The Linux Z3 CI step had not run when this was written, including
-whether the release binary is under the 64 MiB tool limit and runs from a private
-copy. Hand-written mutants are a sample, not a mutation score. The linear cases
+only. Hand-written mutants are a sample, not a mutation score. The linear cases
 are a fixed set, not a general reliability claim, and Z3 UNSAT answers were
 compared with recorded statuses and the enumerating oracle, not independently
 proved. Monotonicity of a caller's Oracle is assumed, not checked.

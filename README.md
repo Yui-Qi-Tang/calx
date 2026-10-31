@@ -786,7 +786,8 @@ go test -tags resolverintegration -count=1 -run TestRealTools ./linear/z3
 - `linear/z3` UNSAT answers have no independently checked proof.
 - Target platforms are macOS arm64 and Linux amd64. On Linux amd64, `make
   verify`, `make race` and the real-tool tests pass in CI, with CaDiCaL 3.0.1
-  and DRAT-trim built from upstream sources. Windows is not a target.
+  and DRAT-trim built from upstream sources and the Z3 5.3.3 release binary.
+  Windows is not a target.
 
 ## Requirements and version
 
