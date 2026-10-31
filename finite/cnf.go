@@ -91,13 +91,11 @@ func checkEncodingBudget(matrix Matrix, forbidden []State, query Query, limits b
 	pairs := horizon * (horizon + 1) / 2
 	variables := (horizon+1)*int64(len(matrix.Coordinates)) + horizon*int64(len(matrix.ActionIDs)) + pairs*int64(len(matrix.Fields))
 	domainClauses := int64(len(forbidden))
-	for _, field := range matrix.Fields {
-		var count int64
-		for _, cell := range matrix.Coordinates {
-			if cell.Field == field {
-				count++
-			}
-		}
+	counts := make(map[string]int64, len(matrix.Fields))
+	for _, cell := range matrix.Coordinates {
+		counts[cell.Field]++
+	}
+	for _, count := range counts {
 		domainClauses += 1 + count*(count-1)/2
 	}
 	actions := int64(len(matrix.ActionIDs))
@@ -110,11 +108,7 @@ func checkEncodingBudget(matrix Matrix, forbidden []State, query Query, limits b
 			if matrix.Frame[i][j] != 1 {
 				continue
 			}
-			for _, cell := range matrix.Coordinates {
-				if cell.Field == field {
-					transitionClauses += 2
-				}
-			}
+			transitionClauses += 2 * counts[field]
 		}
 	}
 	clauses := (horizon+1)*domainClauses + horizon*transitionClauses + int64(len(query.Start)+len(query.Goal)) + pairs*int64(len(matrix.Coordinates)+1) + int64(len(query.Blocked))

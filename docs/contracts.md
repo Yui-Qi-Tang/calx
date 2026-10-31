@@ -19,18 +19,20 @@ allocation and string storage are not a memory sandbox.
 
 ## Finite categorical profile
 
-`categorical-simple-first-hit/v1` supports 1–16 fields, 1–256 nonempty UTF-8
-categorical values per field, 1–1,024 actions and at most 256 forbidden partial
-patterns. The number of Cartesian states is not limited: encoding does not
-enumerate states, and the encoding budget below bounds its size. Field/value/action
-names are at most 200 bytes. Guards are conjunctions, effects are nonempty
+`categorical-simple-first-hit/v1` supports 1–256 fields, 1–256 nonempty UTF-8
+categorical values per field, at most 4,096 coordinates (field/value pairs) in
+total, 1–1,024 actions and at most 256 forbidden partial patterns. The number of
+Cartesian states is not limited: encoding does not enumerate states, and the
+encoding budget below bounds its size. The coordinate limit bounds the dense
+matrices built before that budget is checked. Field/value/action names are at
+most 200 bytes. Guards are conjunctions, effects are nonempty
 constant assignments, and effect/frame sets exactly partition the fields. No
 copy effect or typed numeric arithmetic is inferred. Invalid models fail before
 solving.
 
-The profile names query semantics, not limits. Raising the limits on 2026-10-31
-kept the profile, because models accepted before keep their CNF and digest.
-Older binaries still reject the newly accepted models with `ErrInput`.
+The profile names query semantics, not limits. Both raises of the limits on
+2026-10-31 kept the profile, because models accepted before keep their CNF and
+digest. Older binaries still reject the newly accepted models with `ErrInput`.
 
 Start is complete and domain-valid; goal is a nonempty partial pattern. Horizon
 is an exact count from 0 through 4,095. Each transition chooses exactly one
@@ -52,7 +54,9 @@ measurements.
 A formula within the budget can still exceed the solver's `sat.Limits`.
 Near the clause budget, 16 fields of 64 values produce more than the default
 16 MiB `MaxInputBytes` of `input.json`, and `Solve` then fails with
-`sat.ErrLimit`.
+`sat.ErrLimit`. Wide models reach it the same way: in the measured shape of 100
+actions at horizon 8, two-valued fields fit the budget up to the limit of 256 but
+pass `MaxInputBytes` between 232 and 240 fields.
 
 Compile's private formula and decoding map are owned by the Encoding. CNF and
 Variables accessors return copies and an error; nil/uninitialized encodings
