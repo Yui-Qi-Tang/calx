@@ -51,15 +51,18 @@ type Query struct {
 	Blocked [][]string
 }
 
-// v1 support limits: models have at most 16 fields, 64 values per field, 64
-// actions, 256 forbidden patterns and 4096 Cartesian states; horizons are
-// 0..4095; names are at most 200 bytes.
+// v1 support limits: models have at most 16 fields, 64 values per field, 1024
+// actions and 256 forbidden patterns; horizons are 0..4095; names are at most
+// 200 bytes. The number of Cartesian states is not limited: encoding never
+// enumerates states, and the encoding budget bounds its size. maxActions still
+// has to be finite, because Project allocates dense action-by-coordinate
+// matrices before the budget is checked. Limits are not query semantics, so
+// raising them keeps Profile while accepted models keep their encoding.
 const (
 	maxFields    = 16
 	maxValues    = 64
-	maxActions   = 64
+	maxActions   = 1024
 	maxForbidden = 256
-	maxStates    = 4096
 	maxHorizon   = 4095
 	maxNameBytes = 200
 )
@@ -139,7 +142,6 @@ func (m Model) Validate() error {
 	if len(m.Fields) == 0 || len(m.Fields) > maxFields || len(m.Actions) == 0 || len(m.Actions) > maxActions || len(m.Forbidden) > maxForbidden {
 		return fmt.Errorf("%w: model bounds", ErrInput)
 	}
-	size := 1
 	for f, vs := range m.Fields {
 		if f == "" || !utf8.ValidString(f) || len(f) > maxNameBytes || len(vs) == 0 || len(vs) > maxValues {
 			return ErrInput
@@ -150,10 +152,6 @@ func (m Model) Validate() error {
 				return ErrInput
 			}
 			seen[v] = true
-		}
-		size *= len(vs)
-		if size > maxStates {
-			return fmt.Errorf("%w: domain size", ErrInput)
 		}
 	}
 	for _, p := range m.Forbidden {

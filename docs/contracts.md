@@ -20,11 +20,17 @@ allocation and string storage are not a memory sandbox.
 ## Finite categorical profile
 
 `categorical-simple-first-hit/v1` supports 1–16 fields, 1–64 nonempty UTF-8
-categorical values per field, at most 4,096 Cartesian states, 1–64 actions and at
-most 256 forbidden partial patterns. Field/value/action names are at most 200
-bytes. Guards are conjunctions, effects are nonempty constant assignments, and
-effect/frame sets exactly partition the fields. No copy effect or typed numeric
-arithmetic is inferred. Invalid models fail before solving.
+categorical values per field, 1–1,024 actions and at most 256 forbidden partial
+patterns. The number of Cartesian states is not limited: encoding does not
+enumerate states, and the encoding budget below bounds its size. Field/value/action
+names are at most 200 bytes. Guards are conjunctions, effects are nonempty
+constant assignments, and effect/frame sets exactly partition the fields. No
+copy effect or typed numeric arithmetic is inferred. Invalid models fail before
+solving.
+
+The profile names query semantics, not limits. Raising the limits on 2026-10-31
+kept the profile, because models accepted before keep their CNF and digest.
+Older binaries still reject the newly accepted models with `ErrInput`.
 
 Start is complete and domain-valid; goal is a nonempty partial pattern. Horizon
 is an exact count from 0 through 4,095. Each transition chooses exactly one
@@ -36,7 +42,15 @@ A blocked query's UNSAT does not claim the unblocked problem is unsatisfiable.
 Encoding budgets default to 100,000 variables and 1,000,000 clauses; change
 them with `WithMaxVariables` and `WithMaxClauses`, each at least 1. Budget
 exhaustion and cancellation are errors, never UNSAT. Context is checked at
-stages and during clause construction; this is not a hard CPU quota.
+stages and during clause construction; this is not a hard CPU quota. The action
+limit is 1,024 because the budget, not the limit, should decide at every horizon
+above 1; the [validation record](validation.md#finite-encoding-limits--2026-10-31)
+has the measurements.
+
+A formula within the budget can still exceed the solver's `sat.Limits`.
+Near the clause budget, 16 fields of 64 values produce more than the default
+16 MiB `MaxInputBytes` of `input.json`, and `Solve` then fails with
+`sat.ErrLimit`.
 
 Compile's private formula and decoding map are owned by the Encoding. CNF and
 Variables accessors return copies and an error; nil/uninitialized encodings

@@ -1,5 +1,58 @@
 # Validation
 
+## Finite encoding limits — 2026-10-31
+
+Observed locally on darwin/arm64 (Apple M5 Max) with Go 1.27.3, on a temporary
+copy with the limits raised. All models are synthetic, with assumed field and
+action structure, so solve times are indicative only. Compile times are the
+median of five runs, in one process; solving ran one query at a time with the
+pinned CaDiCaL and DRAT-trim under default `sat.Limits`.
+
+One compile at horizon 8 with 243 actions and 4,140 Cartesian states:
+
+| Fields | Clauses | Literals | Compile | DIMACS |
+| --- | ---: | ---: | ---: | ---: |
+| 23×20×9 | 308,914 | 682,754 | 9.1 ms | 4.13 MiB |
+| 23×5×3×3×2×2 | 295,888 | 642,315 | 9.9 ms | 3.88 MiB |
+
+Blocking each found action sequence until UNSAT, as a path-enumerating consumer
+does, recompiles every query. Compile took 5–11% of the total, so solving and
+proof checking set the real cost. Each set of sequences equals that of a direct
+depth-first enumeration, and each final UNSAT passed DRAT-trim.
+
+| Model | Cartesian states | Actions | Sequences | Compile total | Solve total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Forward only, 23×20×9 | 4,140 | 243 | 416 | 4.0 s | 37.7 s |
+| Forward only, 23×5×3×3×2×2 | 4,140 | 243 | 452 | 4.3 s | 43.5 s |
+| Explicit graph with cycles, 23×20×9 | 4,140 | 243 | 406 | 3.2 s | 56.1 s |
+| Explicit graph with cycles, 23×5×3×3×2×2 | 4,140 | 243 | 374 | 3.5 s | 70.6 s |
+| Forward only, 60×44×40 | 105,600 | 88 | 922 | 4.7 s | 38.8 s |
+| Forward only, 11×8×5×5×4×4×3 | 105,600 | 88 | 1,021 | 3.1 s | 24.2 s |
+| Forward only, 10×9×8×7×4×4×2 | 161,280 | 41 | 628 | 1.1 s | 8.9 s |
+
+Largest action count that `Compile` accepts under the default budget:
+
+| Horizon | 23×20×9 | 23×5×3×3×2×2 | 16 fields of 64 |
+| ---: | ---: | ---: | ---: |
+| 1 | 1,381 | 1,385 | 459 |
+| 2 | 966 | 971 | 234 |
+| 4 | 673 | 678 | 111 |
+| 8 | 466 | 471 | 46 |
+| 16 | 318 | 324 | 10 |
+| 32 | 212 | 219 | 0 |
+
+So 1,024 leaves the budget in charge at every horizon above 1 for these shapes,
+and it is the limit only at horizon 1. Over-budget rejection took about 1.5 ms
+at 1,024 actions on these shapes. At the budget's edge, 998,650 clauses
+(466 actions, 23×20×9) made a 13.82 MiB `input.json` and solved in 158 ms. On 16
+fields of 64, 36 actions made 15.15 MiB and solved, while 40 actions compiled
+and `Solve` returned `sat.ErrLimit`, so literal counts (at most about 2.7
+million) are not the first solver limit reached; `MaxInputBytes` is.
+
+| Change | Evidence |
+| --- | --- |
+| The Cartesian state limit is removed and `maxActions` goes from 64 to 1,024; `Profile` stays v1 | `TestAcceptedEncodingsAreUnchanged` pins the digest and DIMACS hash of three models, including 4,096 states with 64 actions, captured from the code before the change. `TestDomainProductIsNotALimit`, `TestActionLimit` (with the `Project` and `Matrix.Model` round trip at 65, 243 and 1,024 actions, and rejection of 1,025) and `TestOverBudgetIsAnEncodingLimit` all failed before the change. |
+
 ## Functional budget options — 2026-10-30
 
 Observed locally on darwin/arm64 with Go 1.27.3.
