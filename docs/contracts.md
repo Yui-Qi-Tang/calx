@@ -19,7 +19,7 @@ allocation and string storage are not a memory sandbox.
 
 ## Finite categorical profile
 
-`categorical-simple-first-hit/v1` supports 1–16 fields, 1–64 nonempty UTF-8
+`categorical-simple-first-hit/v1` supports 1–16 fields, 1–256 nonempty UTF-8
 categorical values per field, 1–1,024 actions and at most 256 forbidden partial
 patterns. The number of Cartesian states is not limited: encoding does not
 enumerate states, and the encoding budget below bounds its size. Field/value/action
@@ -42,10 +42,12 @@ A blocked query's UNSAT does not claim the unblocked problem is unsatisfiable.
 Encoding budgets default to 100,000 variables and 1,000,000 clauses; change
 them with `WithMaxVariables` and `WithMaxClauses`, each at least 1. Budget
 exhaustion and cancellation are errors, never UNSAT. Context is checked at
-stages and during clause construction; this is not a hard CPU quota. The action
-limit is 1,024 because the budget, not the limit, should decide at every horizon
-above 1; the [validation record](validation.md#finite-encoding-limits--2026-10-31)
-has the measurements.
+stages and during clause construction; this is not a hard CPU quota. At 1,024
+actions, the clauses that allow one action per step alone exceed the default
+clause budget at every horizon above 1, so the action limit decides only at
+horizons 0 and 1 or under a larger `WithMaxClauses`. The
+[validation record](validation.md#finite-encoding-limits--2026-10-31) has the
+measurements.
 
 A formula within the budget can still exceed the solver's `sat.Limits`.
 Near the clause budget, 16 fields of 64 values produce more than the default
@@ -95,7 +97,7 @@ for three, the 24-term FHP 2×2 mass proof over two steps times out, 36- and
 64-term mass proofs time out even for one step, and 32-term momentum proofs
 range from 0.6 s to a timeout. Comparing every step makes multi-step
 whole-lattice proofs slower than the version 1 endpoint comparison (see the
-[v0.1 design](v0.1-design.md#per-step-comparison-2026-10-30)).
+[validation record](validation.md#per-step-comparison-2026-10-30)).
 Counterexample search (SAT) and row or column sums stay fast. Without Start,
 Forbidden or Goal patterns, `Steps: 1` already proves a quantity for every
 state, and so for every step count; it costs the same as before. Treat UNKNOWN

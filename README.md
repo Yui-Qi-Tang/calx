@@ -10,8 +10,8 @@ independently.
 | `digest` | Shared content-digest value, generation, parsing and validation | [Digest API](docs/data-structures.md#content-digests) |
 | `incidence` | Directed multigraph topology ↔ source/target incidence matrices, IDs and opaque relation masks | [Project and reconstruct](#1-incidence-project-and-reconstruct) |
 | `finite` | Validated categorical model → operation matrix → exact-length CNF; assignment → trace | [Matrices and CNF](#2-finite-project-and-compile) |
-| `automaton` | Caller-implemented synchronous Boolean automaton → exact-length CNF; assignment → replayable trajectory (v0.1) | [v0.1 design](docs/v0.1-design.md) |
-| `lga` | HPP and FHP-I lattice gases with walls as `automaton.System`; bit-packed simulation, conserved quantities, density and velocity fields (v0.1) | [v0.1 design](docs/v0.1-design.md#lga) |
+| `automaton` | Caller-implemented synchronous Boolean automaton → exact-length CNF; assignment → replayable trajectory (v0.1) | [Automata primer](docs/automata-primer.md) |
+| `lga` | HPP and FHP-I lattice gases with walls as `automaton.System`; bit-packed simulation, conserved quantities, density and velocity fields (v0.1) | [Lattice gas primer](docs/lga-primer.md) |
 | `sat` | CNF, DIMACS, total-assignment checking, limits and explicit validation records | [Check a formula](#3-sat-check-a-formula) |
 | `sat/cadical` | Pinned CaDiCaL and DRAT-trim processes, checked results and retained artifacts | [Checked solve and trace](#4-satcadical-solve-check-and-decode) |
 
@@ -25,7 +25,6 @@ independently.
 | [Error handling](docs/error-handling.md) | Error-returning accessors, variable roles and inconclusive answers |
 | [Execution flow](docs/execution-flow.md) | Diagrams of the finite route from model through CNF, solver checks and decoding |
 | [Graph to matrix](docs/graph-to-matrix.md) | A visual walkthrough of incidence projection |
-| [v0.1 design](docs/v0.1-design.md) | The automaton and lattice-gas design, phases and measured limits |
 | [SAT primer](docs/sat-primer.md) | A picture-based introduction to CNF, SAT/UNSAT answers and how Calx checks them |
 | [Finite model primer](docs/finite-primer.md) | A picture-based introduction to finite models, queries and their CNF encoding |
 | [Automata primer](docs/automata-primer.md) | A picture-based introduction to automata, their CNF encoding and Garden of Eden states |
@@ -714,7 +713,7 @@ records the observed scope and limitations.
   often time out. One-step proofs cost the same as before, and without Start,
   Forbidden or Goal patterns one step already covers every step count.
   Counterexample search and row or column sums stay fast. See the
-  [measured results](docs/v0.1-design.md#per-step-comparison-2026-10-30).
+  [measured results](docs/validation.md#per-step-comparison-2026-10-30).
 - Solving relies on the external pinned CaDiCaL and DRAT-trim. Calx contains
   no solver or proof checker of its own.
 - Target platforms are macOS arm64 and Linux amd64. Consumer conformance has

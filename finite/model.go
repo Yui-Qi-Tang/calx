@@ -51,16 +51,17 @@ type Query struct {
 	Blocked [][]string
 }
 
-// v1 support limits: models have at most 16 fields, 64 values per field, 1024
+// v1 support limits: models have at most 16 fields, 256 values per field, 1024
 // actions and 256 forbidden patterns; horizons are 0..4095; names are at most
 // 200 bytes. The number of Cartesian states is not limited: encoding never
-// enumerates states, and the encoding budget bounds its size. maxActions still
-// has to be finite, because Project allocates dense action-by-coordinate
-// matrices before the budget is checked. Limits are not query semantics, so
-// raising them keeps Profile while accepted models keep their encoding.
+// enumerates states, and the encoding budget bounds its size. maxActions and
+// maxValues still have to be finite, because Project allocates dense
+// action-by-coordinate matrices before the budget is checked. Limits are not
+// query semantics, so raising them keeps Profile while accepted models keep
+// their encoding.
 const (
 	maxFields    = 16
-	maxValues    = 64
+	maxValues    = 256
 	maxActions   = 1024
 	maxForbidden = 256
 	maxHorizon   = 4095

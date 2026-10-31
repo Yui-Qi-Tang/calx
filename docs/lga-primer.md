@@ -7,7 +7,8 @@ and DRAT-trim for the answers, not worked out by hand.
 [`lga/primer_test.go`](../lga/primer_test.go) checks them by simulation,
 without a solver.
 
-For the design and measured limits see [v0.1 design](v0.1-design.md#lga); for
+For measured limits see
+[validation](validation.md#measured-conservation-proofs-are-counting-arguments); for
 the code path see [execution flow](execution-flow.md#5-automata-and-lattice-gases).
 
 ## 1. Particles as bits
@@ -165,7 +166,7 @@ per-row momentum, walls and FHP.
 An UNSAT answer covers every start state of that lattice size and step count,
 not larger lattices or longer runs. Conservation proofs are counting arguments
 and get slow as lattices grow; see the
-[measured limits](v0.1-design.md#measured-conservation-proofs-are-counting-arguments).
+[measured limits](validation.md#measured-conservation-proofs-are-counting-arguments).
 
 ## 8. Run and Simulate
 

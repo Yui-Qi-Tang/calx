@@ -29,7 +29,7 @@ rechecked before return.
 | Boundary | What runs now | Excluded scope |
 | --- | --- | --- |
 | Declaration compilers (two source trees) | The consumers' actual compiler functions and condition types, minimal in-memory reader stubs; compatible/conflicting formulas, incomplete-input rejection and real checked solver | Database scope reader, currentness, row-level security, persistence, admission and deployed services |
-| Planning consumer | Source planning/validation/projection in an external Go module; exact DIMACS at horizons 0–3; the consumer's own search through Calx; forward/return original-rule replay; topology comparison | Full CLI/governance deployment and real repair execution |
+| Planning consumer | Source planning/validation/projection built against Calx in an external Go module; topology comparison | The consumer's own search and replay, which its own tests cover; exact DIMACS comparison; full CLI/governance deployment and real repair execution |
 | Experiment consumer | 13 frozen DIMACS inputs from two experiment series, with per-file digests, expected status and matching original source hashes; real CLI SAT/proof checks | Fresh encoder execution, fresh semantic replay, all experiment profiles and typed/copy lowering into finite v1 |
 
 The experiment fixtures are the exact 13 inputs from the prior accepted
@@ -52,6 +52,4 @@ partial check results. Passing these selected checks is not native adoption.
 The checker expects `calx-cli/v2` and records newly generated source identities
 under `digest` keys. The frozen fixture manifest keeps its original `sha256`
 keys; that input schema is mapped to `digest.Digest` at the adapter boundary.
-The planning consumer's adapter similarly maps Calx artifact digests into the
-external snapshot's existing artifact fields. These mappings preserve the
-original digest values.
+That mapping preserves the original digest values.

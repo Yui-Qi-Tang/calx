@@ -3,10 +3,15 @@
 ## Finite encoding limits — 2026-10-31
 
 Observed locally on darwin/arm64 (Apple M5 Max) with Go 1.27.3, on a temporary
-copy with the limits raised. All models are synthetic, with assumed field and
-action structure, so solve times are indicative only. Compile times are the
-median of five runs, in one process; solving ran one query at a time with the
-pinned CaDiCaL and DRAT-trim under default `sat.Limits`.
+copy with the action limit at 8,192, so the budget could be measured past 1,024.
+These models are synthetic, with assumed field and action structure, so their
+solve times are indicative only; the composed models below are from real use. Compile times are the median of five runs, in one
+process; solving ran one query at a time with the pinned CaDiCaL and DRAT-trim
+under default `sat.Limits`. A full rerun on the final code gave the same
+variable, clause and literal counts, sequence counts and statuses. That rerun
+kept 64 values per field. The only differences are the ones its limit causes: 1,414 or more actions fail with
+`ErrInput`, and horizon 1 stops at 1,024. Its timings are not shown, because
+other work ran beside it.
 
 One compile at horizon 8 with 243 actions and 4,140 Cartesian states:
 
@@ -41,17 +46,41 @@ Largest action count that `Compile` accepts under the default budget:
 | 16 | 318 | 324 | 10 |
 | 32 | 212 | 219 | 0 |
 
-So 1,024 leaves the budget in charge at every horizon above 1 for these shapes,
-and it is the limit only at horizon 1. Over-budget rejection took about 1.5 ms
-at 1,024 actions on these shapes. At the budget's edge, 998,650 clauses
-(466 actions, 23×20×9) made a 13.82 MiB `input.json` and solved in 158 ms. On 16
-fields of 64, 36 actions made 15.15 MiB and solved, while 40 actions compiled
-and `Solve` returned `sat.ErrLimit`, so literal counts (at most about 2.7
-million) are not the first solver limit reached; `MaxInputBytes` is.
+With the default budget, 1,024 actions can compile only at horizons 0 and 1: at
+horizon 2 the action clauses alone reach 1,047,552. Among these shapes, the
+limit decides at horizon 1 for the first two, and 16 fields of 64 stop at the
+budget first. Over-budget rejection took about 1.5 ms at 1,024 actions on the
+first two shapes. At the budget's edge, 998,650 clauses (466 actions, 23×20×9)
+made a 13.82 MiB `input.json` and solved in 158 ms. On 16 fields of 64, 36
+actions made 15.15 MiB and solved, while 40 actions compiled and `Solve`
+returned `sat.ErrLimit`, so literal counts (at most about 2.7 million) are not
+the first solver limit reached; `MaxInputBytes` is.
+
+Peak resident memory of one `calx encode`, which includes reading the JSON
+input: 165 MiB at 243 actions and horizon 8, 212 MiB at 1,024 actions and
+horizon 1, and 26 MiB for a rejection at 1,024 actions on 16 fields of 64. The
+largest model the limits allow, 1,024 actions on 16 fields of 256, is rejected
+at horizon 1 in 0.56 s with 74 MiB. Those two rejections are budget errors: the
+matrices are built first, and the budget check then refuses them.
+
+Three composed models from real use, enumerated on the final code at every
+horizon from 0 to 8, each until UNSAT, with default budgets and `sat.Limits`.
+The largest field of the first has 115 values, which the former limit of 64
+rejected, so `maxValues` went to 256. Each set of action sequences equals that
+of a direct depth-first enumeration, and every answer was checked. Clauses are
+for horizon 8 with nothing blocked:
+
+| Fields | Coordinates | Cartesian states | Actions | Sequences | Clauses | Compile total | Solve total |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 3 | 135 | 4,140 | 243 | 414 | 525,044 | 3.9 s | 28.0 s |
+| 8 | 43 | 105,600 | 91 | 969 | 76,249 | 1.9 s | 11.1 s |
+| 10 | 39 | 161,280 | 41 | 590 | 28,335 | 0.7 s | 5.3 s |
 
 | Change | Evidence |
 | --- | --- |
-| The Cartesian state limit is removed and `maxActions` goes from 64 to 1,024; `Profile` stays v1 | `TestAcceptedEncodingsAreUnchanged` pins the digest and DIMACS hash of three models, including 4,096 states with 64 actions, captured from the code before the change. `TestDomainProductIsNotALimit`, `TestActionLimit` (with the `Project` and `Matrix.Model` round trip at 65, 243 and 1,024 actions, and rejection of 1,025) and `TestOverBudgetIsAnEncodingLimit` all failed before the change. |
+| The Cartesian state limit is removed, `maxActions` goes from 64 to 1,024 and `maxValues` from 64 to 256; `Profile` stays v1 | `TestAcceptedEncodingsAreUnchanged` pins the digest and DIMACS hash of three models, including 4,096 states with 64 actions, captured from the code before the change. `TestDomainProductIsNotALimit`, `TestActionLimit` (with the `Project` and `Matrix.Model` round trip at 65, 243 and 1,024 actions, and rejection of 1,025), `TestValueLimit` (65, 115 and 256 values, and rejection of 257) and `TestOverBudgetIsAnEncodingLimit` all failed before the change. Setting either limit one above or below and changing `Profile` each fail a test. `make verify` and `make race` pass, as do the real-tool tests in `sat/cadical` and `lga`. |
+| The CLI accepts the wider models | `solve-finite` with the pinned tools, previous and new binary, on seven models. All past the old limits fail on the previous binary. On the new one, 243 actions over 4,140 states, 88 actions over 105,600, 16 fields of 64 and 1,024 actions at horizon 1 are SAT, with traces replayed independently in Python; 8,192 states is UNSAT; 1,025 actions keeps `INPUT_OR_EXECUTION`; 1,024 actions at horizon 8 now returns `LIMIT`. Encoding `examples/finite.json` is byte-identical on both binaries. |
+| Consumer conformance | The planning-consumer step had stopped building at the commit before this change: its adapter fixture expected a `CNF` type and an older `encode` signature that the consumer has replaced. The fixture is removed, so this check no longer compares exact DIMACS or runs that consumer's search; the consumer's own tests cover its search. The step still builds the consumer's planning code against Calx and compares topology. The full check passes every step (`artifacts/consumer-check-20261031-01/`). |
 
 ## Functional budget options — 2026-10-30
 
@@ -69,7 +98,7 @@ Observed locally on darwin/arm64 with Go 1.27.3.
 | `finite.Query.Profile` removed (the CLI checks `profile` itself; the digest still records `finite.Profile`); `sat.Result.Profile` removed; JSON tags removed from `incidence` and `sat` types, with the CLI, `input.json`, `outcome.json`, `examples/incidence` and the consumer check each using their own structs | 35 CLI cases compared with the previous binary: project/reconstruct (including null, missing, unknown and duplicate inputs), solve with JSON and DIMACS input, encode, solve-finite and two profile errors. With timing-dependent artifacts masked, the only difference is the removed `"profile": "cnf/v0"` in 10 solve outputs and `outcome.json` files; encode output, query digests and `input.json` bytes are identical. `examples/compile`, `incidence`, `matrix`, `sat` and `solve` print identical output. `make verify`, `make race`, the real-tool tests in `sat/cadical` and `lga`, and the consumer check (`artifacts/consumer-check-20261030-04/`) pass. |
 | Failed `project`, `reconstruct` and `decode` report empty arrays (and `{}` for `relation_masks`) in `data` instead of nulls | `TestFailedCommandsReportEmptyData` covers all three; returning nulls from decode again fails it. Of the 35 CLI cases above, only the failed project and reconstruct outputs changed, plus one case that feeds the failed project output to reconstruct and now reconstructs an empty graph. |
 | Slices of known length are preallocated: `finite.Project` axes and rows, finite action and difference variables, quantity sides, packed planes, result artifact conversions; `automaton` preallocates its formula from `encodingSize` | `TestEncodingSizeMatchesFormula` now also requires capacity to equal length, so a wrong size estimate fails it. A temporary benchmark (rule 90, 200 cells, 200 steps, five runs each) went from about 8.3 ms and 52.3 MB to 4.2 ms and 18.7 MB per Compile, with allocations unchanged at about 321,000. The 35 CLI cases, `examples/compile`, `incidence`, `matrix`, `sat` and `lga` (with and without `-check`, compared with HEAD) are unchanged; `make verify`, `make race` and the real-tool tests pass. `Simulate` keeps growing its states one step at a time: preallocating `steps+1` would panic for very large or overflowing step counts. |
-| `Violates` compares every pair of consecutive times (`synchronous-boolean/v2`), so a quantity that changes and changes back is found; v1 compared only times 0 and Steps | Before the change, endpoints, time 0 against every time, and consecutive times were measured on 12 cases with the pinned tools and a 90 s limit (table in the [v0.1 design](v0.1-design.md#per-step-comparison-2026-10-30)). `TestViolationOracle` now requires a change at some step and adds rule 51 (every cell negated), where all 8 starts change and return; reverting to the endpoint comparison fails it. `TestEncodingSizeMatchesFormula` passes with the new counts (HPP 2×2, 3 steps, mass: 3,076 clauses). The real-tool test `hpp-walls-change-momentum` failed under v2 at first because it compared only the endpoints of the counterexample; its three counterexample checks now require a change at some step, as does `examples/lga`, which prints the mass at every time. All automaton digests change with the profile. `make verify`, `make race` and the real-tool tests pass. |
+| `Violates` compares every pair of consecutive times (`synchronous-boolean/v2`), so a quantity that changes and changes back is found; v1 compared only times 0 and Steps | Before the change, endpoints, time 0 against every time, and consecutive times were measured on 12 cases with the pinned tools and a 90 s limit ([table](#per-step-comparison-2026-10-30)). `TestViolationOracle` now requires a change at some step and adds rule 51 (every cell negated), where all 8 starts change and return; reverting to the endpoint comparison fails it. `TestEncodingSizeMatchesFormula` passes with the new counts (HPP 2×2, 3 steps, mass: 3,076 clauses). The real-tool test `hpp-walls-change-momentum` failed under v2 at first because it compared only the endpoints of the counterexample; its three counterexample checks now require a change at some step, as does `examples/lga`, which prints the mass at every time. All automaton digests change with the profile. `make verify`, `make race` and the real-tool tests pass. |
 | The four primers' examples are pinned by tests that need no solver: `automaton/primer_test.go` (rule 90 run, variable layout, cell and unit clauses, 12/72 counts, Garden of Eden graph and predecessor answers), `finite/primer_test.go` (transition graph, Guard/Effect/Frame and the Model round trip, allowed states, horizon table with decoded states, the full variable table, via the test DPLL), `sat/primer_test.go` (DIMACS, assignment checks, RUP check of the proof lines) and `lga/primer_test.go` (collision and wall frames, flow averages, exhaustive 2×2 mass, a hand-built leaky counterexample, FHP collisions and wall choice bits) | Each test fails under a matching mutation: HPP head-on pairs passing through, inverted rule-table outputs, and finite runs allowed to repeat states. Solver-chosen values (returned predecessors, the leaky counterexample's masses, the exact proof) are marked as such in the primers. `make verify` and `make race` pass. |
 
 ## JSON v2, tool manifest reuse and performance — 2026-10-27
@@ -137,7 +166,7 @@ this change; the same rewrite would apply to them.
 
 ## v0.1 automaton and lattice gas — 2026-10-26
 
-Phases 1–3 of the [v0.1 design](v0.1-design.md) add `automaton` and `lga`; the
+Phases 1–3 of v0.1 add `automaton` and `lga`; the
 phase 4 and 5 checks follow below. v0.1 leaves `sat` and `sat/cadical`
 unchanged apart from one test timeout: the fixture in
 `TestArtifactArchivalBoundary` went from 1 s to 10 s after it failed under
@@ -185,7 +214,66 @@ The real-tool runs used the pinned CaDiCaL and DRAT-trim listed under
 historical evidence below. Artifacts: `artifacts/lga-phase3-20261026-02/` and
 the scaling probe `artifacts/lga-probe-20261026-01/`. The probe showed
 whole-lattice proofs with 36 or more terms timing out at 90 s; see the
-[measurements](v0.1-design.md#measured-conservation-proofs-are-counting-arguments).
+[measurements](#measured-conservation-proofs-are-counting-arguments).
+
+## Measured: conservation proofs are counting arguments
+
+Phase 3 ran `Violates` queries on HPP with the pinned CaDiCaL and DRAT-trim and
+a 90-second limit. These runs used `synchronous-boolean/v1`, which compared
+only times 0 and Steps; under v2 the clause counts are larger (for example
+1,026 / 3,076 for the first row):
+
+| Lattice | Quantity | Terms | Steps | Clauses | Result |
+| --- | --- | ---: | ---: | ---: | --- |
+| 2×2 | mass | 16 | 1 / 3 | 1,025 / 1,537 | UNSAT in 0.5 s |
+| 3×3 | mass | 36 | 1 / 3 | 3,921 / 5,073 | timeout |
+| 4×4 | mass | 64 | 1 | 10,753 | timeout |
+| 4×4 | momentum y | 32 | 1 / 2 | 3,713 / 4,737 | timeout / 10.8 s |
+| 4×4 | momentum x | 32 | 3 | 5,761 | UNSAT in 1.5 s |
+
+On 2026-10-27, FHP 2×2 mass (24 terms, 2 steps, 7,745 clauses) was UNSAT in
+28 s with the same CaDiCaL and no proof output. The pure-Go solvers gophersat
+(27.7 s) and gini (timeout at 60 s) did no better.
+
+The formulas are small; the difficulty is the proof. Showing that a sum is
+unchanged requires counting, which resolution-based CDCL does not find
+efficiently. Counterexamples for broken rules are found in about 0.01 s on 4×4,
+and row and column sums are proved in about 0.1 s.
+
+### Per-step comparison (2026-10-30)
+
+`synchronous-boolean/v2` compares every pair of consecutive times instead of
+the first and last time. Before the change, three encodings were measured on
+the cases above with the same tools and limit: endpoints (v1), time 0 against
+every later time, and consecutive times (v2). All answers were checked and
+every SAT run was replayed. One run per case:
+
+| Case | Steps | v1 endpoints | time 0 vs every time | v2 consecutive |
+| --- | ---: | --- | --- | --- |
+| One cell negated each step, mass | 2 | UNSAT, 0.65 s | SAT, 0.09 s | SAT, 0.09 s |
+| Broken HPP rule, 4×4 mass | 3 | SAT, 0.10 s | SAT, 0.11 s | SAT, 0.12 s |
+| HPP 2×2 mass | 1 | UNSAT, 0.37 s | UNSAT, 0.37 s | UNSAT, 0.37 s |
+| HPP 2×2 mass | 3 | UNSAT, 0.65 s | UNSAT, 2.44 s | UNSAT, 2.07 s |
+| HPP 4×4 momentum x | 3 | UNSAT, 1.66 s | UNSAT, 4.20 s | UNSAT, 0.63 s |
+| HPP 4×4 row 1 momentum x | 3 | UNSAT, 0.63 s | UNSAT, 0.47 s | UNSAT, 0.29 s |
+| HPP 4×4 momentum y | 2 | UNSAT, 9.66 s | timeout | timeout |
+| FHP 2×2 mass | 2 | UNSAT, 61.9 s | timeout | timeout |
+| HPP 4×4 momentum y; HPP 3×3 mass; HPP 4×4 mass | 1 or 3 | timeout | timeout | timeout |
+
+Times include the proof check. The first row shows the semantic difference:
+the mass goes 0, 1, 0, so only the per-step encodings find the change. With
+one step all three encodings are logically equivalent; v2 adds one variable
+and one clause. Counterexamples and
+few-term quantities are as fast or faster with v2; multi-step whole-lattice
+proofs are slower, and two that v1 finished now time out.
+
+Consequence for users: use `Violates` to find counterexamples and to prove
+quantities with few terms. Without Start, Forbidden or Goal patterns, prove a
+whole-lattice quantity with `Steps: 1`, which covers every state and so every
+step count. A whole-lattice conservation law is better
+established by checking each cell's rule table locally, which is exact and
+covers every step count. That local check is a candidate for a later phase; it
+is not part of v0.1.
 
 ## UNKNOWN error contract — 2026-10-20
 

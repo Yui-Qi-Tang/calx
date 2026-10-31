@@ -129,7 +129,7 @@ interpretation, execution, persistence, or evidence-admission API in v0.
 
 ## v0.1 additions
 
-v0.1 extends the scope as fixed in the [v0.1 design](v0.1-design.md). It adds
+v0.1 adds the `automaton` and `lga` packages and the CLI tool manifest. It adds
 no `sat` or `sat/cadical` capability. Since then their public types have lost
 `Result.Profile` and their JSON tags; the CLI, `input.json` and `outcome.json`
 define their JSON forms with private structs.

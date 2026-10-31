@@ -55,8 +55,8 @@ func repeated(size, fields int) []int {
 }
 
 // TestAcceptedEncodingsAreUnchanged pins models that fit the v1 limits before
-// the domain product check was removed and actions were raised from 64. The
-// values were captured from that code.
+// the domain product check was removed and actions and values were raised from
+// 64. The values were captured from that code.
 func TestAcceptedEncodingsAreUnchanged(t *testing.T) {
 	for name, c := range map[string]struct {
 		sizes               []int
@@ -99,6 +99,7 @@ func TestDomainProductIsNotALimit(t *testing.T) {
 	}{
 		"above the former 4096": {sizes: repeated(2, 13), horizon: 3},
 		"16 fields of 64":       {sizes: repeated(64, 16), horizon: 2},
+		"16 fields of 256":      {sizes: repeated(256, 16), horizon: 0},
 	} {
 		t.Run(name, func(t *testing.T) {
 			m := limitModel(c.sizes, 8)
@@ -154,6 +155,33 @@ func TestActionLimit(t *testing.T) {
 	}
 }
 
+func TestValueLimit(t *testing.T) {
+	for _, values := range []int{65, 115, 256} {
+		t.Run(fmt.Sprint(values), func(t *testing.T) {
+			sizes := []int{values, 3}
+			m := limitModel(sizes, 243)
+			if _, err := finite.Compile(context.Background(), m, limitQuery(sizes, 8)); err != nil {
+				t.Fatal(err)
+			}
+			matrix, err := finite.Project(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			back, err := matrix.Model(m.Forbidden)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Project sorts values, and names past v99 do not sort numerically.
+			if got := len(back.Fields["f00"]); got != values {
+				t.Fatalf("round trip kept %d values", got)
+			}
+		})
+	}
+	if err := limitModel([]int{257, 3}, 1).Validate(); !errors.Is(err, finite.ErrInput) {
+		t.Fatalf("Validate: %v", err)
+	}
+}
+
 func TestOverBudgetIsAnEncodingLimit(t *testing.T) {
 	for name, c := range map[string]struct {
 		sizes            []int
@@ -162,6 +190,7 @@ func TestOverBudgetIsAnEncodingLimit(t *testing.T) {
 		"actions": {sizes: []int{4, 3}, actions: 1024, horizon: 8},
 		"frames":  {sizes: repeated(64, 16), actions: 64, horizon: 8},
 		"horizon": {sizes: repeated(2, 13), actions: 8, horizon: 4095},
+		"values":  {sizes: repeated(256, 16), actions: 1024, horizon: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := finite.Compile(context.Background(), limitModel(c.sizes, c.actions), limitQuery(c.sizes, c.horizon))

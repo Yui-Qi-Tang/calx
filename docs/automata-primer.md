@@ -127,7 +127,7 @@ Any satisfying assignment is exactly a valid run that meets the query, and
 every valid run that meets it is a satisfying assignment. `Violates` adds
 counting circuits (totalizers) that compare the quantity before and after
 every step; counting is also why large conservation proofs are slow
-([measured limits](v0.1-design.md#measured-conservation-proofs-are-counting-arguments)).
+([measured limits](validation.md#measured-conservation-proofs-are-counting-arguments)).
 
 ## 4. Garden of Eden states
 

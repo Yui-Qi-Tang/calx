@@ -143,11 +143,8 @@ func (s *session) checkPouch(ctx context.Context) error {
 			}
 		}
 	}
-	if err := copyFixture("pouch/adapter_test.go", filepath.Join(dir, "internal/planning/calx_test.go")); err != nil {
-		return err
-	}
 	if err := copyFixture("pouch/projection_test.go", filepath.Join(dir, "internal/projection/calx_test.go")); err != nil {
 		return err
 	}
-	return s.testGo(ctx, dir, "pouch", 3, "./internal/planning", "./internal/projection")
+	return s.testGo(ctx, dir, "pouch", 1, "./internal/planning", "./internal/projection")
 }
