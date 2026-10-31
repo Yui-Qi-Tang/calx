@@ -5,11 +5,12 @@ packages depend on no consumer. The current implementation has no
 third-party Go dependency. `sat/cadical` uses `internal/toolrun` and `sat`;
 `finite`, `automaton`, `sat/cadical`, the internal tool packages and the CLI
 package also use `internal/jsoncompat` for their JSON bytes;
-`finite` and `automaton` use `sat`; `lga` uses only `automaton`; `incidence` is
-independent of all of them. The leaf package `digest` owns content identifiers,
-their current algorithm and textual format.
-`finite`, `automaton`, `sat`, `sat/cadical`, tool execution and CLI code use
-that shared type.
+`finite`, `automaton`, `mus` and `linear` use `sat`; `linear/z3` uses `linear`,
+`sat`, `internal/toolrun` and `internal/jsoncompat`; `lga` uses only `automaton`;
+`incidence` is independent of all of them. The leaf package `digest` owns content
+identifiers, their current algorithm and textual format.
+`finite`, `automaton`, `sat`, `sat/cadical`, `linear/z3`, tool execution and CLI
+code use that shared type.
 CLI wiring lives in `internal/cli` and `cmd/calx`.
 
 JSON goes through the standard library's `encoding/json/v2`.
@@ -35,6 +36,15 @@ flowchart TD
     Consumer --> Automaton["automaton"]
     LGA --> Automaton
     Consumer --> Cadical["sat/cadical"]
+    Consumer --> MUS["mus"]
+    Consumer --> Z3["linear/z3"]
+    Consumer --> Linear["linear"]
+    MUS --> SAT
+    Z3 --> Linear
+    Z3 --> SAT
+    Linear --> SAT
+    Z3 --> Toolrun
+    Z3 --> Digest
     CLI["cmd/calx + internal/cli"] --> Incidence
     CLI --> Finite
     CLI --> Cadical
@@ -58,8 +68,8 @@ flowchart TD
 ```
 
 `internal/jsoncompat`, imported by `finite`, `automaton`, `sat/cadical`,
-`internal/toolrun`, `internal/toolmanifest` and the CLI, is left out of the
-diagram.
+`linear/z3`, `internal/toolrun`, `internal/toolmanifest` and the CLI, is left out
+of the diagram.
 
 ## Data flow
 
@@ -83,6 +93,20 @@ flowchart LR
     Result -->|SAT assignment| Decode["Encoding.Decode"]
     Encoding --> Decode
     Decode --> Trace["Model trace"]
+```
+
+Conflict localization wraps a solve, and the linear route has its own input and
+runner:
+
+```mermaid
+flowchart LR
+    Groups["Caller's constraint groups"] --> Oracle["mus.Oracle"]
+    Oracle --> Shrink["mus.Shrink"]
+    Shrink --> Core["Core: groups, Minimal, witness, steps"]
+    Oracle --> SolveCNF["cadical.Runner.Solve"]
+    Oracle --> SolveLinear["z3.Runner.Solve"]
+    Problem["linear.Problem"] --> SolveLinear
+    SolveLinear --> Linear["Status + checked SAT model + artifacts"]
 ```
 
 The finite Decode route requires its matching Encoding. A raw CNF consumer uses
@@ -147,5 +171,23 @@ define their JSON forms with private structs.
   reproduce a real fluid.
 - Implemented: the CLI's `pin-tools` command writes a tool manifest that solve
   commands accept through `--tools`, as an alternative to the four tool flags.
-- The v0 exclusions above still apply to everything else, including SMT,
-  arbitrary numerical matrix algebra and persistence.
+- The v0 exclusions above still apply to everything else, including arbitrary
+  numerical matrix algebra and persistence. General SMT stays excluded; see the
+  next section for the one linear profile.
+
+## Conflict localization and linear integers
+
+These packages add no `sat` or `sat/cadical` capability.
+
+- `mus` shrinks a conflict by deletion. The caller implements `mus.Oracle`, so
+  Calx sees group indices and `sat.Result` records, never what a group means.
+  `mus` is the one place that consumes a backend generically, and it needs only
+  that record: `cadical.Result` and `z3.Result` both embed `sat.Result`.
+- `linear` is a typed subset of QF_LIA, not SMT-LIB input. It validates, encodes
+  and checks models without running a process. `linear/z3` runs the pinned Z3
+  through the same `internal/toolrun` as `sat/cadical`.
+- There is no general solver interface, registry or backend fallback. SAT and
+  linear problems have different inputs and assignments, and the backends give
+  different guarantees, so a consumer constructs the concrete runner it needs.
+  A Z3 UNSAT cannot meet `UNSATProofChecked`, and nothing substitutes another
+  backend when a guarantee is missing.

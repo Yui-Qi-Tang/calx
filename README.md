@@ -2,8 +2,8 @@
 
 Calx is a domain-neutral Go module for graph incidence projection, bounded
 categorical-model encoding, bounded analysis of caller-supplied Boolean
-automata and checked Boolean SAT solving. Packages can be imported
-independently.
+automata, checked Boolean SAT solving, conflict localization and a small
+linear integer profile. Packages can be imported independently.
 
 | Package | Responsibility | Example |
 | --- | --- | --- |
@@ -14,27 +14,33 @@ independently.
 | `lga` | HPP and FHP-I lattice gases with walls as `automaton.System`; bit-packed simulation, conserved quantities, density and velocity fields (v0.1) | [Lattice gas primer](docs/lga-primer.md) |
 | `sat` | CNF, DIMACS, total-assignment checking, limits and explicit validation records | [Check a formula](#3-sat-check-a-formula) |
 | `sat/cadical` | Pinned CaDiCaL and DRAT-trim processes, checked results and retained artifacts | [Checked solve and trace](#4-satcadical-solve-check-and-decode) |
+| `mus` | Caller-implemented `Oracle` over constraint groups → one irreducible conflicting subset, for any backend | [Conflict localization primer](docs/mus-primer.md) |
+| `linear` | Boolean CNF plus a conjunction of linear integer comparisons: validation, SMT-LIB encoding and exact model checking | [Linear integer primer](docs/linear-primer.md) |
+| `linear/z3` | Pinned Z3 process, checked SAT models and retained artifacts; UNSAT has no checked proof | [Linear integers](#7-linear-and-linearz3-solve-linear-integers) |
 
 ## Documentation
 
 | Document | Read it for |
 | --- | --- |
-| [Architecture](docs/architecture.md) | Package boundaries, imports, data flow and scope (v0 and v0.1) |
+| [Architecture](docs/architecture.md) | Package boundaries, imports, data flow and scope |
 | [Contracts](docs/contracts.md) | Validation rules, limits and what each answer guarantees |
 | [Data structures](docs/data-structures.md) | Go types, JSON fields, variable numbering and matrix dimensions |
 | [Error handling](docs/error-handling.md) | Error-returning accessors, variable roles and inconclusive answers |
-| [Execution flow](docs/execution-flow.md) | Diagrams of the finite route from model through CNF, solver checks and decoding |
+| [Execution flow](docs/execution-flow.md) | Diagrams of the finite, automaton, conflict localization and linear routes |
 | [Graph to matrix](docs/graph-to-matrix.md) | A visual walkthrough of incidence projection |
 | [SAT primer](docs/sat-primer.md) | A picture-based introduction to CNF, SAT/UNSAT answers and how Calx checks them |
 | [Finite model primer](docs/finite-primer.md) | A picture-based introduction to finite models, queries and their CNF encoding |
 | [Automata primer](docs/automata-primer.md) | A picture-based introduction to automata, their CNF encoding and Garden of Eden states |
 | [Lattice gas primer](docs/lga-primer.md) | A picture-based introduction to HPP and FHP lattice gases and the questions a solver can answer about them |
+| [Conflict localization primer](docs/mus-primer.md) | A picture-based walk through shrinking a conflict, its guarantees and writing an Oracle |
+| [Linear integer primer](docs/linear-primer.md) | A picture-based introduction to linear integer problems, what Z3's answers guarantee and how they differ from CaDiCaL's |
 | [Validation log](docs/validation.md) | Dated verification records and retained evidence |
 
 ## Library examples
 
 Run all commands below from the repository root. The first three package
-sections use only Go; the fourth requires explicitly pinned solver executables.
+sections use only Go; the fourth requires explicitly pinned solver executables,
+and so do real runs of the sixth and seventh.
 
 ### 1. incidence: project and reconstruct
 
@@ -592,6 +598,66 @@ proofs of counting arguments over several steps stop finishing at about 24
 to 32 terms; see
 [contracts](docs/contracts.md#synchronous-boolean-automata-v01).
 
+### 6. mus: shrink a conflict
+
+An UNSAT answer says that a whole formula conflicts. `mus.Shrink` deletes one
+group of constraints at a time and returns a subset that still conflicts, with
+every remaining group needed. The caller implements `mus.Oracle`, so a group
+can be anything, and any backend can decide it. `mus.ByOrigin` is the Oracle
+for a CNF whose clauses carry `Origins`:
+
+```go
+oracle, err := mus.ByOrigin(formula, func(ctx context.Context, step int, c sat.CNF) (sat.Result, error) {
+	solved, err := runner.Solve(ctx, fmt.Sprintf("core-%d", step), c)
+	return solved.Result, err
+})
+if err != nil {
+	return err
+}
+core, err := mus.Shrink(ctx, oracle, sat.Requirements{SATModelChecked: true, UNSATProofChecked: true})
+if err != nil {
+	return err // core keeps any conflict already established; see the contracts.
+}
+for _, g := range core.Groups {
+	fmt.Println(oracle.Names()[g])
+}
+```
+
+The result is one conflict, not every conflict or a smallest one, and it does
+not say which group is wrong. The [primer](docs/mus-primer.md) walks through a
+run step by step, and [a runnable example](mus/example_test.go) needs no solver.
+
+### 7. linear and linear/z3: solve linear integers
+
+`linear.Problem` holds Boolean CNF and a conjunction of comparisons of integer
+sums with constants. Integers are canonical decimal strings, so they do not
+overflow:
+
+```go
+r, err := z3.New(z3.Config{SolverPath: z3Path, SolverDigest: z3Digest, ArtifactDir: newDirectory})
+if err != nil {
+	return err
+}
+result, err := r.Solve(ctx, "budget-check", linear.Problem{
+	Integers: []sat.Variable{{ID: 1}},
+	Constraints: []linear.Constraint{{
+		Terms:    []linear.Term{{Variable: 1, Coefficient: "2"}},
+		Relation: linear.AtLeast,
+		RHS:      "18446744073709551616",
+	}},
+})
+if err != nil {
+	return err
+}
+return result.Require(sat.Requirements{SATModelChecked: true})
+```
+
+A SAT model is evaluated against the original problem with exact arithmetic.
+UNSAT is Z3's report alone: nothing checks it independently, so requiring
+`UNSATProofChecked` always fails for it. Use `sat/cadical` when a conclusion
+must carry a checked proof. The [primer](docs/linear-primer.md) shows what the
+profile can express, with worked problems.
+
 ## Standalone command
 
 ```sh
@@ -691,11 +757,17 @@ Opt-in actual solver acceptance, with the four tool variables above and
 `CALX_ARTIFACTS` naming an existing fresh acceptance parent:
 
 ```sh
-go test -tags resolverintegration -count=1 -run TestRealTools ./sat/cadical ./lga
+go test -tags resolverintegration -count=1 -run TestRealTools ./sat/cadical ./lga ./mus
 ```
 
 The `lga` tests prove HPP and FHP conservation laws, find counterexamples for
 deliberately broken rules, and check walls and chirality.
+
+The Z3 acceptance reads `CALX_Z3`, `CALX_Z3_DIGEST` and `CALX_ARTIFACTS`:
+
+```sh
+go test -tags resolverintegration -count=1 -run TestRealTools ./linear/z3
+```
 
 [Validation](docs/validation.md) records the observed scope and limitations.
 
@@ -709,23 +781,25 @@ deliberately broken rules, and check walls and chirality.
   Forbidden or Goal patterns one step already covers every step count.
   Counterexample search and row or column sums stay fast. See the
   [measured results](docs/validation.md#per-step-comparison-2026-10-30).
-- Solving relies on the external pinned CaDiCaL and DRAT-trim. Calx contains
+- Solving relies on the external pinned CaDiCaL, DRAT-trim and Z3. Calx contains
   no solver or proof checker of its own.
+- `linear/z3` UNSAT answers have no independently checked proof.
 - Target platforms are macOS arm64 and Linux amd64. On Linux amd64, `make
   verify`, `make race` and the real-tool tests pass in CI, with CaDiCaL 3.0.1
   and DRAT-trim built from upstream sources. Windows is not a target.
 
 ## Requirements and version
 
-Experimental, unreleased: v0 is complete and v0.1 adds `automaton` and `lga`.
+Experimental, unreleased: v0 is complete, v0.1 adds `automaton` and `lga`, and
+`mus`, `linear` and `linear/z3` followed.
 Development and verification use **Go 1.27.3**, which `go.mod` also declares
 as the minimum; consumers need at least that version.
 The library module currently uses only the Go standard library. Verification
 also runs pinned errcheck v1.30.0 as an external Go development tool.
 Projection and encoding
 run without external executables; SAT solving requires the pinned CaDiCaL and
-DRAT-trim tools described above. The CLI exposes the incidence, finite and
-checked-solve operations to Python and other consumers; `automaton` and `lga`
-are Go-only.
+DRAT-trim tools described above, and `linear/z3` requires a pinned Z3. The CLI
+exposes the incidence, finite and checked-solve operations to Python and other
+consumers; `automaton`, `lga`, `mus` and `linear` are Go-only.
 
 License: [MIT](LICENSE).

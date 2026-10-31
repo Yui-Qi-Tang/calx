@@ -49,6 +49,12 @@ jobs:
         run: |
           (cd .tools/cadical && ./configure && make -j4)
           make -C .tools/drat-trim drat-trim
+      # The release checksum is the pin; building Z3 from source takes too long.
+      - name: Fetch Z3
+        run: |
+          curl -fsSL -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-5.3.3/z3-5.3.3-x64-glibc-2.39.zip
+          echo "d56f60b06f432f33de5810f7f1a384a339131f361e2d54d08ea83eea14326880  z3.zip" | sha256sum -c -
+          unzip -q z3.zip -d .tools/z3
       # The source commits above are the pin. The binaries differ from the local
       # macOS ones, and their bytes can change with the runner's compiler, so
       # each run takes its digests from what it built.
@@ -56,12 +62,15 @@ jobs:
         run: |
           cadical="$PWD/.tools/cadical/build/cadical"
           checker="$PWD/.tools/drat-trim/drat-trim"
+          z3="$PWD/.tools/z3/z3-5.3.3-x64-glibc-2.39/bin/z3"
           mkdir -p "$RUNNER_TEMP/artifacts"
           {
             echo "CALX_CADICAL=$cadical"
             echo "CALX_CADICAL_DIGEST=$(sha256sum "$cadical" | cut -d' ' -f1)"
             echo "CALX_DRAT=$checker"
             echo "CALX_DRAT_DIGEST=$(sha256sum "$checker" | cut -d' ' -f1)"
+            echo "CALX_Z3=$z3"
+            echo "CALX_Z3_DIGEST=$(sha256sum "$z3" | cut -d' ' -f1)"
             echo "CALX_ARTIFACTS=$RUNNER_TEMP/artifacts"
           } >> "$GITHUB_ENV"
-      - run: go test -tags resolverintegration -count=1 ./sat/cadical/ ./lga/ ./internal/cli/
+      - run: go test -tags resolverintegration -count=1 ./sat/cadical/ ./lga/ ./internal/cli/ ./mus/ ./linear/z3/

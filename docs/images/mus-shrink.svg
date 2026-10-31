@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="870" viewBox="0 0 1600 870" role="img" aria-labelledby="title desc"><title id="title">Shrinking a conflict, one group at a time</title><desc id="desc">Each row is one real check. A deleted group that leaves UNSAT goes for good; one that makes the rest SAT goes back.</desc><defs>
+<marker id="gray" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#64748b"/></marker>
+<marker id="blue" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#2563eb"/></marker>
+<marker id="teal" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#0f766e"/></marker>
+<marker id="red" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b91c1c"/></marker>
+<marker id="amber" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#b45309"/></marker>
+</defs><g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+<rect width="1600" height="870" fill="#f8fafc"/>
+<text x="40" y="55" font-size="32" fill="#0f172a" font-weight="700" text-anchor="start">Shrinking a conflict, one group at a time</text>
+<text x="40" y="94" font-size="18" fill="#334155" font-weight="400" text-anchor="start">Each row is one real check. A deleted group that leaves UNSAT goes for good; one that makes the rest SAT goes back.</text>
+<text x="40" y="183" font-size="17" fill="#334155" font-weight="700" text-anchor="start">check</text>
+<text x="263.0" y="173" font-size="15" fill="#64748b" font-weight="700" text-anchor="middle">0</text>
+<text x="263.0" y="195" font-size="17" fill="#0f172a" font-weight="700" text-anchor="middle">clock-set</text>
+<text x="263.0" y="218" font-size="15" fill="#334155" font-weight="400" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">x3</text>
+<text x="441.0" y="173" font-size="15" fill="#64748b" font-weight="700" text-anchor="middle">1</text>
+<text x="441.0" y="195" font-size="17" fill="#0f172a" font-weight="700" text-anchor="middle">light-off</text>
+<text x="441.0" y="218" font-size="15" fill="#334155" font-weight="400" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">NOT x2</text>
+<text x="619.0" y="173" font-size="15" fill="#64748b" font-weight="700" text-anchor="middle">2</text>
+<text x="619.0" y="195" font-size="17" fill="#0f172a" font-weight="700" text-anchor="middle">power-implies-light</text>
+<text x="619.0" y="218" font-size="15" fill="#334155" font-weight="400" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">NOT x1 OR x2</text>
+<text x="797.0" y="173" font-size="15" fill="#64748b" font-weight="700" text-anchor="middle">3</text>
+<text x="797.0" y="195" font-size="17" fill="#0f172a" font-weight="700" text-anchor="middle">power-on</text>
+<text x="797.0" y="218" font-size="15" fill="#334155" font-weight="400" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">x1</text>
+<text x="975.0" y="173" font-size="15" fill="#64748b" font-weight="700" text-anchor="middle">4</text>
+<text x="975.0" y="195" font-size="17" fill="#0f172a" font-weight="700" text-anchor="middle">tv-on</text>
+<text x="975.0" y="218" font-size="15" fill="#334155" font-weight="400" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">x4</text>
+<text x="1082" y="195" font-size="17" fill="#334155" font-weight="700" text-anchor="start">answer</text>
+<text x="1210" y="195" font-size="17" fill="#334155" font-weight="700" text-anchor="start">what happens</text>
+<text x="40" y="279" font-size="20" fill="#0f172a" font-weight="700" text-anchor="start">0</text>
+<text x="72" y="279" font-size="16" fill="#334155" font-weight="400" text-anchor="start">all groups</text>
+<rect x="180" y="243" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="263.0" y="281.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="358" y="243" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="441.0" y="281.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="536" y="243" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="619.0" y="281.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="714" y="243" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="797.0" y="281.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="892" y="243" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="975.0" y="281.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="1082" y="249" width="104" height="52" rx="20" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="1134" y="281.0" font-size="17" fill="#b91c1c" font-weight="700" text-anchor="middle">UNSAT</text>
+<text x="1210" y="281.0" font-size="16" fill="#b91c1c" font-weight="400" text-anchor="start">There is a conflict to shrink</text>
+<text x="40" y="363" font-size="20" fill="#0f172a" font-weight="700" text-anchor="start">1</text>
+<text x="72" y="363" font-size="16" fill="#334155" font-weight="400" text-anchor="start">delete 0</text>
+<rect x="180" y="327" width="166" height="64" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="2.5" stroke-dasharray="8 5"/>
+<text x="263.0" y="365.0" font-size="16" fill="#b45309" font-weight="700" text-anchor="middle">left out</text>
+<rect x="358" y="327" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="441.0" y="365.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="536" y="327" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="619.0" y="365.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="714" y="327" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="797.0" y="365.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="892" y="327" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="975.0" y="365.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="1082" y="333" width="104" height="52" rx="20" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="1134" y="365.0" font-size="17" fill="#b91c1c" font-weight="700" text-anchor="middle">UNSAT</text>
+<text x="1210" y="365.0" font-size="16" fill="#334155" font-weight="400" text-anchor="start">Still conflicts: clock-set removed</text>
+<text x="40" y="447" font-size="20" fill="#0f172a" font-weight="700" text-anchor="start">2</text>
+<text x="72" y="447" font-size="16" fill="#334155" font-weight="400" text-anchor="start">delete 1</text>
+<rect x="180" y="411" width="166" height="64" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 6"/>
+<text x="263.0" y="449.0" font-size="15" fill="#64748b" font-weight="400" text-anchor="middle">removed</text>
+<rect x="358" y="411" width="166" height="64" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="2.5" stroke-dasharray="8 5"/>
+<text x="441.0" y="449.0" font-size="16" fill="#b45309" font-weight="700" text-anchor="middle">left out</text>
+<rect x="536" y="411" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="619.0" y="449.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="714" y="411" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="797.0" y="449.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="892" y="411" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="975.0" y="449.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="1082" y="417" width="104" height="52" rx="20" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.5"/>
+<text x="1134" y="449.0" font-size="17" fill="#0f766e" font-weight="700" text-anchor="middle">SAT</text>
+<text x="1210" y="449.0" font-size="16" fill="#0f766e" font-weight="400" text-anchor="start">Conflict gone: light-off is needed</text>
+<text x="40" y="531" font-size="20" fill="#0f172a" font-weight="700" text-anchor="start">3</text>
+<text x="72" y="531" font-size="16" fill="#334155" font-weight="400" text-anchor="start">delete 2</text>
+<rect x="180" y="495" width="166" height="64" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 6"/>
+<text x="263.0" y="533.0" font-size="15" fill="#64748b" font-weight="400" text-anchor="middle">removed</text>
+<rect x="358" y="495" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="441.0" y="533.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="536" y="495" width="166" height="64" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="2.5" stroke-dasharray="8 5"/>
+<text x="619.0" y="533.0" font-size="16" fill="#b45309" font-weight="700" text-anchor="middle">left out</text>
+<rect x="714" y="495" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="797.0" y="533.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="892" y="495" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="975.0" y="533.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="1082" y="501" width="104" height="52" rx="20" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.5"/>
+<text x="1134" y="533.0" font-size="17" fill="#0f766e" font-weight="700" text-anchor="middle">SAT</text>
+<text x="1210" y="533.0" font-size="16" fill="#0f766e" font-weight="400" text-anchor="start">Conflict gone: the rule is needed</text>
+<text x="40" y="615" font-size="20" fill="#0f172a" font-weight="700" text-anchor="start">4</text>
+<text x="72" y="615" font-size="16" fill="#334155" font-weight="400" text-anchor="start">delete 3</text>
+<rect x="180" y="579" width="166" height="64" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 6"/>
+<text x="263.0" y="617.0" font-size="15" fill="#64748b" font-weight="400" text-anchor="middle">removed</text>
+<rect x="358" y="579" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="441.0" y="617.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="536" y="579" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="619.0" y="617.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="714" y="579" width="166" height="64" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="2.5" stroke-dasharray="8 5"/>
+<text x="797.0" y="617.0" font-size="16" fill="#b45309" font-weight="700" text-anchor="middle">left out</text>
+<rect x="892" y="579" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="975.0" y="617.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="1082" y="585" width="104" height="52" rx="20" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.5"/>
+<text x="1134" y="617.0" font-size="17" fill="#0f766e" font-weight="700" text-anchor="middle">SAT</text>
+<text x="1210" y="617.0" font-size="16" fill="#0f766e" font-weight="400" text-anchor="start">Conflict gone: power-on is needed</text>
+<text x="40" y="699" font-size="20" fill="#0f172a" font-weight="700" text-anchor="start">5</text>
+<text x="72" y="699" font-size="16" fill="#334155" font-weight="400" text-anchor="start">delete 4</text>
+<rect x="180" y="663" width="166" height="64" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 6"/>
+<text x="263.0" y="701.0" font-size="15" fill="#64748b" font-weight="400" text-anchor="middle">removed</text>
+<rect x="358" y="663" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="441.0" y="701.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="536" y="663" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="619.0" y="701.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="714" y="663" width="166" height="64" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+<text x="797.0" y="701.0" font-size="16" fill="#2563eb" font-weight="700" text-anchor="middle">in</text>
+<rect x="892" y="663" width="166" height="64" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="2.5" stroke-dasharray="8 5"/>
+<text x="975.0" y="701.0" font-size="16" fill="#b45309" font-weight="700" text-anchor="middle">left out</text>
+<rect x="1082" y="669" width="104" height="52" rx="20" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="1134" y="701.0" font-size="17" fill="#b91c1c" font-weight="700" text-anchor="middle">UNSAT</text>
+<text x="1210" y="701.0" font-size="16" fill="#334155" font-weight="400" text-anchor="start">Still conflicts: tv-on removed</text>
+<rect x="40" y="753" width="1520" height="96" rx="14" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+<text x="64" y="791" font-size="21" fill="#0f172a" font-weight="700" text-anchor="start">Result: Groups = [1, 2, 3], Minimal = true, 6 checks</text>
+<text x="64" y="824" font-size="17" fill="#334155" font-weight="400" text-anchor="start">light-off, power-implies-light and power-on conflict, and each one is needed. Witness is check 5, the UNSAT check of exactly these three.</text>
+</g></svg>

@@ -186,4 +186,6 @@ another input.
   formula an answer is about; an old result is not evidence for a new formula.
 
 To see the same pipeline on a real model, read the [finite primer](finite-primer.md)
-and the [automata primer](automata-primer.md).
+and the [automata primer](automata-primer.md). To go from an UNSAT answer to the
+clauses behind it, read the [conflict localization primer](mus-primer.md). For
+numbers rather than Booleans, read the [linear integer primer](linear-primer.md).
