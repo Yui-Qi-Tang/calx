@@ -77,13 +77,14 @@ compared, not the set; the set comparison below is on a smaller model.
 | `checkEncodingBudget` counts per field | `TestBudgetCountsMixedFields`: a formula that exactly fills the budget on mixed field sizes compiles, and one clause less does not. |
 | Wide paths are right | `TestWideModelPathsMatchEnumeration` compares the path set on 20 fields, horizons 0–4, against a direct enumeration of states from the action rules, with the test DPLL oracle. |
 | Repository checks | `make verify` and `make race` pass. With the pinned tools, the real-tool tests in `sat/cadical`, `lga`, `internal/cli`, `mus` and `linear/z3` pass. |
+| Linux and macOS in CI | CI run on merge commit `07a4ec0`: the test jobs pass on Linux amd64 and macOS, and the real-tool tests pass on Linux amd64. They run these tests, not the measurements above. |
 | Test strength | 10 mutants on a copy: the limit one above and below, the checks removed and the counts changed. 8 were killed. Removing the field or coordinate bound in `Matrix.actions` survives, because `Matrix.Model` then validates the model and returns the same `ErrInput`. |
 | The CLI accepts wide models | `solve-finite` on the previous and new binary. The previous one fails all seven with `INPUT_OR_EXECUTION`. The new one returns SAT for 17 fields at 20 and 103 actions, 64 and 256 fields, and 4,096 coordinates, with traces replayed independently in Python; 257 fields and 4,097 coordinates keep `INPUT_OR_EXECUTION`. |
 
-Not covered: models from real use, Linux, horizons other than those listed,
-solving with many-valued wide fields, enumeration above 128 fields or 103
-actions, and the CLI's own 16 MiB input limit, which frame lists reach sooner on
-wide models with long names.
+Not covered: models from real use, the measurements on Linux, horizons other
+than those listed, solving with many-valued wide fields, enumeration above 128
+fields or 103 actions, and the CLI's own 16 MiB input limit, which frame lists
+reach sooner on wide models with long names.
 
 ## Conflict localization and linear integers — 2026-10-31
 
