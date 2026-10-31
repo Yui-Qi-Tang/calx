@@ -14,10 +14,11 @@
 | `mus` over `linear/z3` | Groups are constraints. Requiring a checked proof fails with `sat.ErrGuarantee`; accepting unchecked UNSAT finds the conflict | Pass |
 | `linear.WriteSMTLIB` and `input.json` | Exact byte comparison | Pass |
 | Test strength | 14 hand-written mutants of `mus`, `linear` and `linear/z3` on a copy of the repository | All killed |
-| README sections 6 and 7, primer snippets | Go snippets compiled in a throwaway module, not run | Pass |
+| README sections 6 and 7 | Embedded source compared byte for byte with `examples/mus` and `examples/linear`; each program run with real tools and its output compared with the README | Pass |
+| Primer snippets | Go snippets compiled in a throwaway module, not run | Pass |
 | `docs/mus-primer.md`, `docs/linear-primer.md` | Tables taken from real solver runs; `mus/primer_test.go` and `linear/primer_test.go` recheck them with an enumerator, and the Z3 acceptance rechecks the unique model | Pass |
 | Primer images | SVG parsed by xmllint, rendered with rsvg-convert and inspected by eye | Pass |
-| Links in README and docs | Script resolving relative paths and heading anchors | Pass, 151 links |
+| Links in README and docs | Script resolving relative paths and heading anchors | Pass, 154 links |
 | Docs against the new packages | Script checks that exported names appear in the docs and that package-qualified references exist. `go list` imports compared with the architecture text. Prose compared by reading | Differences fixed |
 | Real tools on Linux amd64 | CI run on merge commit `0f01d6b`: Z3 5.3.3 release checksum verified, and `sat/cadical`, `lga`, `internal/cli`, `mus` and `linear/z3` ran with the tools. The release binary runs from a private copy within the 64 MiB limit | Pass |
 | New Mermaid diagrams | Parsed and rendered with Mermaid 11.4.1 in a browser; output not inspected by eye | Pass, 10 diagrams |

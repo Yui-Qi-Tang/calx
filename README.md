@@ -39,8 +39,8 @@ linear integer profile. Packages can be imported independently.
 ## Library examples
 
 Run all commands below from the repository root. The first three package
-sections use only Go; the fourth requires explicitly pinned solver executables,
-and so do real runs of the sixth and seventh.
+sections use only Go; sections 4, 6 and 7 require explicitly pinned solver
+executables, and section 5 needs them only for `-check`.
 
 ### 1. incidence: project and reconstruct
 
@@ -604,59 +604,252 @@ An UNSAT answer says that a whole formula conflicts. `mus.Shrink` deletes one
 group of constraints at a time and returns a subset that still conflicts, with
 every remaining group needed. The caller implements `mus.Oracle`, so a group
 can be anything, and any backend can decide it. `mus.ByOrigin` is the Oracle
-for a CNF whose clauses carry `Origins`:
+for a CNF whose clauses carry `Origins`.
+
+The program below has five clauses, of which three conflict. It uses the same
+four `CALX_*` tool variables as section 4.
+
+[Complete runnable source](examples/mus/main.go):
 
 ```go
-oracle, err := mus.ByOrigin(formula, func(ctx context.Context, step int, c sat.CNF) (sat.Result, error) {
-	solved, err := runner.Solve(ctx, fmt.Sprintf("core-%d", step), c)
-	return solved.Result, err
-})
-if err != nil {
-	return err
+// Command mus demonstrates shrinking a checked UNSAT answer to one irreducible
+// conflict with mus.Shrink and the pinned solver and proof checker.
+package main
+
+import (
+	"context"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/mus"
+	"github.com/Yui-Qi-Tang/calx/sat"
+	"github.com/Yui-Qi-Tang/calx/sat/cadical"
+)
+
+func main() {
+	artifacts := flag.String("artifacts", "artifacts/go-mus", "new run directory; parent must exist and the run directory must not exist")
+	flag.Parse()
+	if err := run(context.Background(), *artifacts); err != nil {
+		log.Fatal(err)
+	}
 }
-core, err := mus.Shrink(ctx, oracle, sat.Requirements{SATModelChecked: true, UNSATProofChecked: true})
-if err != nil {
-	return err // core keeps any conflict already established; see the contracts.
-}
-for _, g := range core.Groups {
-	fmt.Println(oracle.Names()[g])
+
+func run(ctx context.Context, artifacts string) error {
+	// 1. Declare the formula. Origins name the group of each clause.
+	formula := sat.CNF{
+		Variables: []sat.Variable{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}},
+		Clauses:   [][]int{{3}, {1}, {-1, 2}, {-2}, {4}},
+		Origins: [][]string{
+			{"clock-set"}, {"power-on"}, {"power-implies-light"}, {"light-off"}, {"tv-on"},
+		},
+	}
+
+	// 2. Pin the solver and the proof checker.
+	runner, err := cadical.New(cadical.Config{
+		SolverPath:    os.Getenv("CALX_CADICAL"),
+		SolverDigest:  digest.Digest(os.Getenv("CALX_CADICAL_DIGEST")),
+		CheckerPath:   os.Getenv("CALX_DRAT"),
+		CheckerDigest: digest.Digest(os.Getenv("CALX_DRAT_DIGEST")),
+		ArtifactDir:   artifacts,
+	})
+	if err != nil {
+		return err
+	}
+
+	// 3. Build the Oracle. Each check gets its own query ID.
+	oracle, err := mus.ByOrigin(formula, func(ctx context.Context, step int, trial sat.CNF) (sat.Result, error) {
+		solved, err := runner.Solve(ctx, fmt.Sprintf("core-%d", step), trial)
+		return solved.Result, err
+	})
+	if err != nil {
+		return err
+	}
+
+	// 4. Shrink, requiring a checked model or proof for every answer.
+	core, err := mus.Shrink(ctx, oracle, sat.Requirements{SATModelChecked: true, UNSATProofChecked: true})
+	if err != nil {
+		return err
+	}
+
+	// 5. Translate group indices back to the caller's names.
+	names := oracle.Names()
+	out := struct {
+		Conflict []string   `json:"conflict"`
+		Minimal  bool       `json:"minimal"`
+		Witness  sat.Status `json:"witness"`
+		Checks   []string   `json:"checks"`
+	}{Minimal: core.Minimal, Witness: core.Witness.Status}
+	for _, g := range core.Groups {
+		out.Conflict = append(out.Conflict, names[g])
+	}
+	for _, step := range core.Steps {
+		checked := "all groups"
+		if step.Removed >= 0 {
+			checked = "without " + names[step.Removed]
+		}
+		out.Checks = append(out.Checks, fmt.Sprintf("%s: %s", checked, step.Result.Status))
+	}
+	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), out)
 }
 ```
 
+```sh
+go run ./examples/mus -artifacts artifacts/go-mus
+```
+
+```json
+{"conflict":["light-off","power-implies-light","power-on"],"minimal":true,"witness":"UNSAT","checks":["all groups: UNSAT","without clock-set: UNSAT","without light-off: SAT","without power-implies-light: SAT","without power-on: SAT","without tv-on: UNSAT"]}
+```
+
+Each check is one real solver run. Deleting `clock-set` or `tv-on` leaves UNSAT,
+so they go. Deleting any of the other three gives SAT, so they stay. On an error,
+`core` keeps any conflict already established; see the
+[contracts](docs/contracts.md#conflict-localization).
+
 The result is one conflict, not every conflict or a smallest one, and it does
-not say which group is wrong. The [primer](docs/mus-primer.md) walks through a
-run step by step, and [a runnable example](mus/example_test.go) needs no solver.
+not say which group is wrong. The [primer](docs/mus-primer.md) walks through this
+run step by step, and [a runnable example](mus/example_test.go) needs no solver:
+
+```sh
+go test -run ExampleShrink -v ./mus
+```
 
 ### 7. linear and linear/z3: solve linear integers
 
 `linear.Problem` holds Boolean CNF and a conjunction of comparisons of integer
 sums with constants. Integers are canonical decimal strings, so they do not
-overflow:
+overflow. The program below solves one problem whose answer does not fit in an
+`int64`, and one that has no integer solution.
 
-```go
-r, err := z3.New(z3.Config{SolverPath: z3Path, SolverDigest: z3Digest, ArtifactDir: newDirectory})
-if err != nil {
-	return err
-}
-result, err := r.Solve(ctx, "budget-check", linear.Problem{
-	Integers: []sat.Variable{{ID: 1}},
-	Constraints: []linear.Constraint{{
-		Terms:    []linear.Term{{Variable: 1, Coefficient: "2"}},
-		Relation: linear.AtLeast,
-		RHS:      "18446744073709551616",
-	}},
-})
-if err != nil {
-	return err
-}
-return result.Require(sat.Requirements{SATModelChecked: true})
+| Environment variable | Meaning |
+| --- | --- |
+| `CALX_Z3` | File path to the Z3 executable |
+| `CALX_Z3_DIGEST` | Expected digest of that executable's complete contents |
+
+```sh
+export CALX_Z3=/absolute/path/to/z3
+export CALX_Z3_DIGEST="$(shasum -a 256 "$CALX_Z3" | awk '{print $1}')"
 ```
 
-A SAT model is evaluated against the original problem with exact arithmetic.
-UNSAT is Z3's report alone: nothing checks it independently, so requiring
-`UNSATProofChecked` always fails for it. Use `sat/cadical` when a conclusion
-must carry a checked proof. The [primer](docs/linear-primer.md) shows what the
-profile can express, with worked problems.
+[Complete runnable source](examples/linear/main.go):
+
+```go
+// Command linear demonstrates solving linear integer problems with the pinned
+// Z3: a checked SAT model beyond 64 bits, and an UNSAT answer with no proof.
+package main
+
+import (
+	"context"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
+	"flag"
+	"log"
+	"os"
+
+	"github.com/Yui-Qi-Tang/calx/digest"
+	"github.com/Yui-Qi-Tang/calx/linear"
+	"github.com/Yui-Qi-Tang/calx/linear/z3"
+	"github.com/Yui-Qi-Tang/calx/sat"
+)
+
+func main() {
+	artifacts := flag.String("artifacts", "artifacts/go-linear", "new run directory; parent must exist and the run directory must not exist")
+	flag.Parse()
+	if err := run(context.Background(), *artifacts); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context, artifacts string) error {
+	// 1. Pin the solver.
+	runner, err := z3.New(z3.Config{
+		SolverPath:   os.Getenv("CALX_Z3"),
+		SolverDigest: digest.Digest(os.Getenv("CALX_Z3_DIGEST")),
+		ArtifactDir:  artifacts,
+	})
+	if err != nil {
+		return err
+	}
+
+	// 2. x + y = 2^64 and x - y = 2. x does not fit in an int64.
+	pair := linear.Problem{
+		Integers: []sat.Variable{{ID: 1}, {ID: 2}},
+		Constraints: []linear.Constraint{{
+			Terms:    []linear.Term{{Variable: 1, Coefficient: "1"}, {Variable: 2, Coefficient: "1"}},
+			Relation: linear.Equal,
+			RHS:      "18446744073709551616",
+		}, {
+			Terms:    []linear.Term{{Variable: 1, Coefficient: "1"}, {Variable: 2, Coefficient: "-1"}},
+			Relation: linear.Equal,
+			RHS:      "2",
+		}},
+	}
+	solved, err := runner.Solve(ctx, "pair", pair)
+	if err != nil {
+		return err
+	}
+	// The model was evaluated against pair with exact arithmetic.
+	if err := solved.Require(sat.Requirements{SATModelChecked: true}); err != nil {
+		return err
+	}
+
+	// 3. 2x = 1 has a real solution but no integer one.
+	half := linear.Problem{
+		Integers: []sat.Variable{{ID: 1}},
+		Constraints: []linear.Constraint{{
+			Terms:    []linear.Term{{Variable: 1, Coefficient: "2"}},
+			Relation: linear.Equal,
+			RHS:      "1",
+		}},
+	}
+	refuted, err := runner.Solve(ctx, "half", half)
+	if err != nil {
+		return err
+	}
+
+	// 4. The answer is Z3's report alone, so requiring a proof must fail.
+	err = refuted.Require(sat.Requirements{UNSATProofChecked: true})
+	if !errors.Is(err, sat.ErrGuarantee) {
+		return errors.New("an unproved UNSAT met the proof requirement")
+	}
+
+	return json.MarshalEncode(jsontext.NewEncoder(os.Stdout), struct {
+		Pair        sat.Status `json:"pair"`
+		X           string     `json:"x"`
+		Y           string     `json:"y"`
+		ModelMethod string     `json:"model_method"`
+		Half        sat.Status `json:"half"`
+		HalfProof   bool       `json:"half_proof_present"`
+		ProofError  string     `json:"proof_requirement"`
+	}{
+		Pair: solved.Status, X: solved.Assignment.Integers[1], Y: solved.Assignment.Integers[2],
+		ModelMethod: solved.Model.Method,
+		Half:        refuted.Status, HalfProof: refuted.Proof.Present, ProofError: err.Error(),
+	})
+}
+```
+
+```sh
+go run ./examples/linear -artifacts artifacts/go-linear
+```
+
+```json
+{"pair":"SAT","x":"9223372036854775809","y":"9223372036854775807","model_method":"total-bool-and-big-integer-evaluation/v0","half":"UNSAT","half_proof_present":false,"proof_requirement":"required guarantee unavailable: checked UNSAT proof"}
+```
+
+`x` and `y` are the only solution, so they do not depend on the solver. A SAT
+model is evaluated against the original problem with exact arithmetic. UNSAT is
+Z3's report alone: nothing checks it independently, so requiring
+`UNSATProofChecked` always fails for it, as `proof_requirement` shows. Use
+`sat/cadical` when a conclusion must carry a checked proof. The
+[primer](docs/linear-primer.md) shows what the profile can express, with worked
+problems.
 
 ## Standalone command
 
