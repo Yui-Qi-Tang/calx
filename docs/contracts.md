@@ -54,9 +54,9 @@ measurements.
 A formula within the budget can still exceed the solver's `sat.Limits`.
 Near the clause budget, 16 fields of 64 values produce more than the default
 16 MiB `MaxInputBytes` of `input.json`, and `Solve` then fails with
-`sat.ErrLimit`. Wide models reach it the same way: at 100 actions and horizon 8,
-two-valued fields fit the budget up to the limit of 256 but pass `MaxInputBytes`
-between 232 and 240 fields.
+`sat.ErrLimit`. Wide models reach it the same way: in the measured shape of 100
+actions at horizon 8, two-valued fields fit the budget up to the limit of 256 but
+pass `MaxInputBytes` between 232 and 240 fields.
 
 Compile's private formula and decoding map are owned by the Encoding. CNF and
 Variables accessors return copies and an error; nil/uninitialized encodings

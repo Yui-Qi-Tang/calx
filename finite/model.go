@@ -57,10 +57,10 @@ type Query struct {
 // Cartesian states is not limited: encoding never enumerates states, and the
 // encoding budget bounds its size. maxActions and maxCoordinates still have to
 // be finite, because Project allocates dense action-by-coordinate matrices
-// before the budget is checked; they bound that allocation, not maxFields and
-// maxValues together, so wide models of few values do not raise the worst case.
-// Limits are not query semantics, so raising them keeps Profile while accepted
-// models keep their encoding.
+// before the budget is checked. maxCoordinates bounds the columns directly,
+// because maxFields*maxValues would allow 65,536 of them. Limits are not query
+// semantics, so raising them keeps Profile while accepted models keep their
+// encoding.
 const (
 	maxFields      = 256
 	maxValues      = 256

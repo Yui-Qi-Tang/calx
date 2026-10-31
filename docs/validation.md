@@ -12,21 +12,22 @@ The field count does not set the cost of `Project`: its matrices have a row per
 action and a column per coordinate. One 1,024-action model at each shape, with
 horizon 1 unless stated, allocated and refused as follows. All are budget
 refusals, which is why the time is for the whole `Compile`. The "without" rows
-ran on a copy with `maxFields` raised and no coordinate limit, and the first
-"before" column on the former `checkEncodingBudget`, which scanned every
-coordinate for each framed field of each action.
+ran on a copy with `maxFields` raised and no coordinate limit. The "before"
+column used the former `checkEncodingBudget`, which scanned every coordinate for
+each framed field of each action.
 
 | Fields × values | Coordinates | Status | `Project` allocation | Refusal, before | Refusal, final |
 | --- | ---: | --- | ---: | ---: | ---: |
-| 16×256 | 4,096 | Accepted | 66 MiB | 182 ms | 61 ms |
-| 64×64 | 4,096 | Accepted | 71 MiB | 1.2 s | 66 ms |
-| 256×16 | 4,096 | Accepted, the largest allocation the limits allow | 93 MiB | 2.2 s | 122 ms |
-| 256×2, horizon 8 | 512 | Accepted | 36 MiB | not measured | 71 ms |
+| 16×256 | 4,096 | Within the limits | 66 MiB | 182 ms | 61 ms |
+| 64×64 | 4,096 | Within the limits | 71 MiB | 1.2 s | 66 ms |
+| 256×16 | 4,096 | Within the limits, the largest allocation they allow | 93 MiB | 2.2 s | 122 ms |
+| 256×2, horizon 8 | 512 | Within the limits | 36 MiB | not measured | 71 ms |
 | 64×256 | 16,384 | Without the coordinate limit | 265 MiB | 2.2 s | not reachable |
 | 128×256 | 32,768 | Without the coordinate limit | 531 MiB | 9.0 s | not reachable |
 
 Peak resident memory of `calx encode` refusing 256×16, including reading its
-JSON input, was 82 MiB, in 0.13 s.
+JSON input, was 82 MiB, in 0.13 s. These worst-case shapes stop at the budget,
+so they have no solve or DRAT figures.
 
 The coordinate limit costs little. A field of 256 values needs 32,641 clauses at
 each time, so under the default budget at most 15 such fields fit at horizon 1
@@ -39,17 +40,17 @@ cover all fields, or the first 16 with the rest framed only, as on/off options
 are; each row gives the range over the two. Solve includes writing inputs and
 checking the model or proof.
 
-| Fields | Clauses | `input.json` | SAT solve | UNSAT solve | Largest proof |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 16 | 90,717 | 1.47 MB | 0.15–0.37 s | 1.2–1.4 s | 11.8 MB |
-| 17 | 94,008 | 1.53 MB | 0.15 s | 1.2–1.4 s | 14.7 MB |
-| 32 | 143,373 | 2.50 MB | 0.16 s | 1.2–1.3 s | 13.7 MB |
-| 64 | 248,685 | 4.66 MB | 0.19 s | 1.3–1.4 s | 13.7 MB |
-| 128 | 459,309 | 9.13 MB | 0.24 s | 1.2–2.7 s | 26.9 MB |
-| 224 | 775,245 | 15.87 MB | 0.31 s | 1.9–2.6 s | 24.2 MB |
-| 232 | 801,573 | 16.43 MB | 0.32 s | 1.9–3.1 s | 27.7 MB |
-| 240 | 827,901 | 16.99 MB | `sat.ErrLimit` | `sat.ErrLimit` | — |
-| 256 | 880,557 | 18.12 MB | `sat.ErrLimit` | `sat.ErrLimit` | — |
+| Fields | Clauses | Compile | `input.json` | SAT solve | UNSAT solve | Largest proof |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 90,717 | 4–9 ms | 1.47 MB | 0.15–0.37 s | 1.2–1.4 s | 11.8 MB |
+| 17 | 94,008 | 4–5 ms | 1.53 MB | 0.15 s | 1.2–1.4 s | 14.7 MB |
+| 32 | 143,373 | 6–7 ms | 2.50 MB | 0.16 s | 1.2–1.3 s | 13.7 MB |
+| 64 | 248,685 | 10–11 ms | 4.66 MB | 0.19 s | 1.3–1.4 s | 13.7 MB |
+| 128 | 459,309 | 17 ms | 9.13 MB | 0.24 s | 1.2–2.7 s | 26.9 MB |
+| 224 | 775,245 | 29–30 ms | 15.87 MB | 0.31 s | 1.9–2.6 s | 24.2 MB |
+| 232 | 801,573 | 30–32 ms | 16.43 MB | 0.32 s | 1.9–3.1 s | 27.7 MB |
+| 240 | 827,901 | 26–36 ms | 16.99 MB | `sat.ErrLimit` | `sat.ErrLimit` | — |
+| 256 | 880,557 | 32–36 ms | 18.12 MB | `sat.ErrLimit` | `sat.ErrLimit` | — |
 
 240 and 256 fields fit the encoding budget, and stop at `MaxInputBytes`. With
 that limit raised they solve in about 0.33 s for SAT and 1.9–3.2 s for UNSAT,
@@ -75,12 +76,14 @@ compared, not the set; the set comparison below is on a smaller model.
 | Over budget is `ErrEncodingLimit` | `TestOverBudgetIsAnEncodingLimit` gains 256 fields of 2 at 1,024 actions. |
 | `checkEncodingBudget` counts per field | `TestBudgetCountsMixedFields`: a formula that exactly fills the budget on mixed field sizes compiles, and one clause less does not. |
 | Wide paths are right | `TestWideModelPathsMatchEnumeration` compares the path set on 20 fields, horizons 0–4, against a direct enumeration of states from the action rules, with the test DPLL oracle. |
+| Repository checks | `make verify` and `make race` pass. With the pinned tools, the real-tool tests in `sat/cadical`, `lga`, `internal/cli`, `mus` and `linear/z3` pass. |
 | Test strength | 10 mutants on a copy: the limit one above and below, the checks removed and the counts changed. 8 were killed. Removing the field or coordinate bound in `Matrix.actions` survives, because `Matrix.Model` then validates the model and returns the same `ErrInput`. |
 | The CLI accepts wide models | `solve-finite` on the previous and new binary. The previous one fails all seven with `INPUT_OR_EXECUTION`. The new one returns SAT for 17 fields at 20 and 103 actions, 64 and 256 fields, and 4,096 coordinates, with traces replayed independently in Python; 257 fields and 4,097 coordinates keep `INPUT_OR_EXECUTION`. |
 
-Not covered: models from real use, horizons other than those listed, solving
-with many-valued wide fields, and the CLI's own 16 MiB input limit, which frame
-lists reach sooner on wide models with long names.
+Not covered: models from real use, Linux, horizons other than those listed,
+solving with many-valued wide fields, enumeration above 128 fields or 103
+actions, and the CLI's own 16 MiB input limit, which frame lists reach sooner on
+wide models with long names.
 
 ## Conflict localization and linear integers — 2026-10-31
 
