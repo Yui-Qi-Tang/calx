@@ -23,7 +23,46 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # Real-tool tests and the consumer check need the pinned solver binaries
-      # and consumer checkouts, so they stay local.
+      # The consumer check needs consumer checkouts, so it stays local.
       - run: make verify
       - run: make race
+
+  real-solver:
+    name: real solver (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: arminbiere/cadical
+          ref: c60730422e758ef1cebe7aeddf2dda31c996bf04 # rel-3.0.1
+          path: .tools/cadical
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marijnheule/drat-trim
+          ref: 2e5e29cb0019d5cfd547d4208dca1b3ec290349f # v05.22.2023
+          path: .tools/drat-trim
+      - name: Build the solver and the proof checker
+        run: |
+          (cd .tools/cadical && ./configure && make -j4)
+          make -C .tools/drat-trim drat-trim
+      # The source commits above are the pin. The binaries differ from the local
+      # macOS ones, and their bytes can change with the runner's compiler, so
+      # each run takes its digests from what it built.
+      - name: Point the tests at the built tools
+        run: |
+          cadical="$PWD/.tools/cadical/build/cadical"
+          checker="$PWD/.tools/drat-trim/drat-trim"
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          {
+            echo "CALX_CADICAL=$cadical"
+            echo "CALX_CADICAL_DIGEST=$(sha256sum "$cadical" | cut -d' ' -f1)"
+            echo "CALX_DRAT=$checker"
+            echo "CALX_DRAT_DIGEST=$(sha256sum "$checker" | cut -d' ' -f1)"
+            echo "CALX_ARTIFACTS=$RUNNER_TEMP/artifacts"
+          } >> "$GITHUB_ENV"
+      - run: go test -tags resolverintegration -count=1 ./sat/cadical/ ./lga/
