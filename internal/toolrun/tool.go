@@ -42,14 +42,14 @@ func readTool(path string, expected digest.Digest) (raw []byte, err error) {
 		return nil, errors.New("not an executable regular file")
 	}
 	if info.Size() > maxExecutableBytes {
-		return nil, fmt.Errorf("%w: executable size", sat.ErrLimit)
+		return nil, sat.ErrExecutableLimit
 	}
 	raw, err = io.ReadAll(io.LimitReader(f, maxExecutableBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading executable: %w", err)
 	}
 	if len(raw) > maxExecutableBytes {
-		return nil, fmt.Errorf("%w: executable size", sat.ErrLimit)
+		return nil, sat.ErrExecutableLimit
 	}
 	if digest.Sum(raw) != expected {
 		return nil, fmt.Errorf("%w: executable digest mismatch", sat.ErrValidation)

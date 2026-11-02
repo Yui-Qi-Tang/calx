@@ -25,7 +25,7 @@ func TestReadDIMACS(t *testing.T) {
 			t.Fatal(raw, e)
 		}
 	}
-	if _, e := ReadDIMACS(strings.NewReader("p cnf 2 0"), Limits{MaxVariables: 1}); !errors.Is(e, ErrLimit) {
+	if _, e := ReadDIMACS(strings.NewReader("p cnf 2 0"), Limits{MaxVariables: 1}); !errors.Is(e, ErrInputLimit) || !errors.Is(e, ErrLimit) {
 		t.Fatal(e)
 	}
 }

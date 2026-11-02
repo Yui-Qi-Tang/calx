@@ -47,12 +47,12 @@ func (l Limits) WithDefaults() (Limits, error) {
 // CheckCNF enforces allocation bounds before encoding a CNF formula.
 func (l Limits) CheckCNF(c CNF) error {
 	if len(c.Variables) > l.MaxVariables || len(c.Clauses) > l.MaxClauses {
-		return ErrLimit
+		return ErrInputLimit
 	}
 	remaining := l.MaxLiterals
 	for _, clause := range c.Clauses {
 		if len(clause) > remaining {
-			return ErrLimit
+			return ErrInputLimit
 		}
 		remaining -= len(clause)
 	}

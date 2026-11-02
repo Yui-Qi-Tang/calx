@@ -68,7 +68,7 @@ func Execute(ctx context.Context, dir, stem, executable string, maxOutput int64,
 	// writer errors separately, including when 10/20 is a valid solver exit.
 	processErr = errors.Join(processErr, out.err, errOut.err, WriteJSON(filepath.Join(dir, stem+".json"), record))
 	if out.exceeded || errOut.exceeded {
-		processErr = errors.Join(processErr, fmt.Errorf("%w: tool output", sat.ErrLimit))
+		processErr = errors.Join(processErr, sat.ErrOutputLimit)
 	}
 	if err := ctx.Err(); err != nil {
 		processErr = errors.Join(processErr, err)

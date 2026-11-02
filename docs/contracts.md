@@ -192,6 +192,20 @@ also bound input at 16 MiB, each output stream at 16 MiB, and accepted proof at
 terminates the process group; descendant termination is not guaranteed on other
 platforms. Native Windows execution has not been validated.
 
+Each limit kind has its own error, and each satisfies `errors.Is(err,
+sat.ErrLimit)`. The messages are fixed strings that never contain a path.
+
+| Error | Limit | Returned by |
+| --- | --- | --- |
+| `sat.ErrInputLimit` | `MaxVariables`, `MaxClauses`, `MaxLiterals` or `MaxInputBytes` | `Limits.CheckCNF`, `ReadDIMACS`, `linear.Problem.CheckLimits`, both runners before starting a tool, CLI input over 16 MiB |
+| `sat.ErrOutputLimit` | `MaxOutputBytes` on a tool's stdout or stderr | both runners, after stopping the tool |
+| `sat.ErrProofLimit` | `MaxProofBytes`; DRAT-trim is not run | `cadical.Runner.Solve` on UNSAT |
+| `sat.ErrExecutableLimit` | 64 MiB per pinned executable | `cadical.New`, `z3.New` |
+
+Other limit errors are `sat.ErrLimit` alone: `ReadArtifact` given a size above
+every runner limit, and the `finite` and `automaton` encoding budgets
+(`ErrEncodingLimit`).
+
 ## Conflict localization
 
 `mus.Shrink` first checks every group together, then tries deleting each group

@@ -105,7 +105,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		return result, err
 	}
 	if len(input) > r.config.Limits.MaxInputBytes {
-		return result, sat.ErrLimit
+		return result, sat.ErrInputLimit
 	}
 	result.InputDigest, err = toolrun.Save(dir, "input.json", input)
 	if err != nil {
@@ -116,7 +116,7 @@ func (r *Runner) Solve(ctx context.Context, id string, cnf sat.CNF) (result Resu
 		return result, err
 	}
 	if formula.Len() > r.config.Limits.MaxInputBytes {
-		return result, sat.ErrLimit
+		return result, sat.ErrInputLimit
 	}
 	result.FormulaDigest, err = toolrun.Save(dir, "input.cnf", formula.Bytes())
 	if err != nil {
@@ -181,7 +181,7 @@ func (r *Runner) checkProof(ctx context.Context, dir string, emptyClause bool, r
 	}
 	result.Proof.Present = true
 	if proof.Size() > r.config.MaxProofBytes {
-		return fmt.Errorf("%w: proof", sat.ErrLimit)
+		return sat.ErrProofLimit
 	}
 	checked, err := toolrun.Execute(ctx, dir, "checker", filepath.Join(r.root, "tools", "drat-trim"), r.config.Limits.MaxOutputBytes, "input.cnf", "proof.drat")
 	if err != nil {

@@ -1,6 +1,7 @@
 package sat_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Yui-Qi-Tang/calx/digest"
@@ -32,6 +33,25 @@ func TestResultIsZero(t *testing.T) {
 	} {
 		if v.IsZero() {
 			t.Errorf("validation %s: reported zero", name)
+		}
+	}
+}
+
+func TestLimitKinds(t *testing.T) {
+	kinds := map[error]string{
+		sat.ErrInputLimit:      "resolver limit exceeded: input",
+		sat.ErrOutputLimit:     "resolver limit exceeded: tool output",
+		sat.ErrProofLimit:      "resolver limit exceeded: proof size",
+		sat.ErrExecutableLimit: "resolver limit exceeded: executable size",
+	}
+	for kind, message := range kinds {
+		if !errors.Is(kind, sat.ErrLimit) || kind.Error() != message {
+			t.Errorf("%v: want %q wrapping ErrLimit", kind, message)
+		}
+		for other := range kinds {
+			if other != kind && errors.Is(kind, other) {
+				t.Errorf("%v matches %v", kind, other)
+			}
 		}
 	}
 }

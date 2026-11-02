@@ -150,7 +150,7 @@ func TestCheckLimitsSharesBudgets(t *testing.T) {
 		"terms":     {Booleans: sat.CNF{Variables: base.Variables, Clauses: [][]int{{1, -1, 1}}}, Integers: []sat.Variable{{ID: 1}}, Constraints: []Constraint{constraint}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := p.CheckLimits(limits); !errors.Is(err, sat.ErrLimit) {
+			if err := p.CheckLimits(limits); !errors.Is(err, sat.ErrInputLimit) {
 				t.Fatal(err)
 			}
 		})
