@@ -56,3 +56,24 @@ func TestExecutableDigestContract(t *testing.T) {
 		t.Fatalf("lost hex decoding error: %v", err)
 	}
 }
+
+func TestOversizedExecutableIsAnExecutableLimit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture requires POSIX executable mode bits")
+	}
+	path := filepath.Join(t.TempDir(), "tool")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// Truncate extends the file sparsely, so no 64 MiB is written.
+	if err := os.Truncate(path, maxExecutableBytes+1); err != nil {
+		t.Fatal(err)
+	}
+	_, err := readTool(path, digest.Sum(nil))
+	if !errors.Is(err, sat.ErrExecutableLimit) || !errors.Is(err, sat.ErrLimit) {
+		t.Fatalf("readTool error = %v", err)
+	}
+	if strings.Contains(err.Error(), path) {
+		t.Fatalf("error names the path: %v", err)
+	}
+}

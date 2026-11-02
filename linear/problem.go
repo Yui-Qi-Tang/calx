@@ -119,21 +119,21 @@ func (p Problem) CheckShape() error {
 // clauses plus constraints, and literals plus terms share the sat.Limits budgets.
 func (p Problem) CheckLimits(l sat.Limits) error {
 	if len(p.Booleans.Variables) > l.MaxVariables || len(p.Integers) > l.MaxVariables-len(p.Booleans.Variables) {
-		return sat.ErrLimit
+		return sat.ErrInputLimit
 	}
 	if len(p.Booleans.Clauses) > l.MaxClauses || len(p.Constraints) > l.MaxClauses-len(p.Booleans.Clauses) {
-		return sat.ErrLimit
+		return sat.ErrInputLimit
 	}
 	remaining := l.MaxLiterals
 	for _, clause := range p.Booleans.Clauses {
 		if len(clause) > remaining {
-			return sat.ErrLimit
+			return sat.ErrInputLimit
 		}
 		remaining -= len(clause)
 	}
 	for _, c := range p.Constraints {
 		if len(c.Terms) > remaining {
-			return sat.ErrLimit
+			return sat.ErrInputLimit
 		}
 		remaining -= len(c.Terms)
 	}

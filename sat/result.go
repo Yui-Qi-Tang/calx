@@ -22,8 +22,21 @@ const (
 var (
 	// ErrInput marks malformed input.
 	ErrInput = errors.New("invalid resolver input")
-	// ErrLimit marks a configured input, output or accepted proof limit.
+	// ErrLimit marks a configured resource limit. The Err*Limit errors below
+	// wrap it to name the kind; other limit errors are ErrLimit alone.
 	ErrLimit = errors.New("resolver limit exceeded")
+	// ErrInputLimit marks input over MaxVariables, MaxClauses, MaxLiterals or
+	// MaxInputBytes. It satisfies errors.Is(err, ErrLimit).
+	ErrInputLimit = fmt.Errorf("%w: input", ErrLimit)
+	// ErrOutputLimit marks tool stdout or stderr over MaxOutputBytes. It
+	// satisfies errors.Is(err, ErrLimit).
+	ErrOutputLimit = fmt.Errorf("%w: tool output", ErrLimit)
+	// ErrProofLimit marks a proof over the runner's proof limit; the proof is
+	// not checked. It satisfies errors.Is(err, ErrLimit).
+	ErrProofLimit = fmt.Errorf("%w: proof size", ErrLimit)
+	// ErrExecutableLimit marks a pinned tool executable over the size the
+	// runner will copy. It satisfies errors.Is(err, ErrLimit).
+	ErrExecutableLimit = fmt.Errorf("%w: executable size", ErrLimit)
 	// ErrProtocol marks output inconsistent with the pinned tool protocol.
 	ErrProtocol = errors.New("invalid tool response")
 	// ErrValidation marks an invalid model or unverified proof.

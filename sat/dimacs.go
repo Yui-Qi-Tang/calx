@@ -22,7 +22,7 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 		return CNF{}, err
 	}
 	if len(raw) > l.MaxInputBytes {
-		return CNF{}, ErrLimit
+		return CNF{}, ErrInputLimit
 	}
 	scan := bufio.NewScanner(bytes.NewReader(raw))
 	scan.Buffer(make([]byte, 4096), l.MaxInputBytes)
@@ -50,7 +50,7 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 				return CNF{}, ErrInput
 			}
 			if n > l.MaxVariables || k > l.MaxClauses {
-				return CNF{}, ErrLimit
+				return CNF{}, ErrInputLimit
 			}
 			c.Variables = make([]Variable, n)
 			for i := range n {
@@ -84,7 +84,7 @@ func ReadDIMACS(r io.Reader, limits Limits) (CNF, error) {
 			}
 			literals++
 			if literals > l.MaxLiterals {
-				return CNF{}, ErrLimit
+				return CNF{}, ErrInputLimit
 			}
 			lits = append(lits, v)
 		}

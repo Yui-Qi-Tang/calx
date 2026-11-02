@@ -106,7 +106,7 @@ func TestBadModelAndProcessResponses(t *testing.T) {
 		{"type-mismatch", "echo sat; if [ \"$2\" = model.smt2 ]; then echo '((i1 true))'; fi", sat.ErrProtocol},
 		{"bad-exit", "echo unsat; exit 1", sat.ErrProtocol},
 		{"garbage", "echo maybe", sat.ErrProtocol},
-		{"output-limit", "yes sat | head -c 2000000", sat.ErrLimit},
+		{"output-limit", "yes sat | head -c 2000000", sat.ErrOutputLimit},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := fixture(t, c.body, 5*time.Second)
@@ -138,12 +138,12 @@ func TestInputLimitsPrecedeTheTool(t *testing.T) {
 	r := fixture(t, "exit 1", 5*time.Second)
 	r.config.Limits.MaxVariables = 1
 	p := linear.Problem{Integers: []sat.Variable{{ID: 1}, {ID: 2}}}
-	if _, err := r.Solve(context.Background(), "limit", p); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "limit", p); !errors.Is(err, sat.ErrInputLimit) {
 		t.Fatal(err)
 	}
 	r.config.Limits.MaxVariables = 10
 	r.config.Limits.MaxInputBytes = 8
-	if _, err := r.Solve(context.Background(), "bytes", p); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "bytes", p); !errors.Is(err, sat.ErrInputLimit) {
 		t.Fatal(err)
 	}
 }

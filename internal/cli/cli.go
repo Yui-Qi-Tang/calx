@@ -190,7 +190,7 @@ func readInput(path string, stdin io.Reader) (raw []byte, err error) {
 	}
 	raw, err = io.ReadAll(io.LimitReader(reader, maxInput+1))
 	if len(raw) > maxInput {
-		err = errors.Join(err, sat.ErrLimit)
+		err = errors.Join(err, sat.ErrInputLimit)
 	}
 	return raw, err
 }

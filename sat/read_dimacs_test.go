@@ -26,7 +26,7 @@ func referenceReadDIMACS(r io.Reader, limits sat.Limits) (sat.CNF, error) {
 		return sat.CNF{}, err
 	}
 	if len(raw) > l.MaxInputBytes {
-		return sat.CNF{}, sat.ErrLimit
+		return sat.CNF{}, sat.ErrInputLimit
 	}
 	scan := bufio.NewScanner(bytes.NewReader(raw))
 	scan.Buffer(make([]byte, 4096), l.MaxInputBytes)
@@ -51,7 +51,7 @@ func referenceReadDIMACS(r io.Reader, limits sat.Limits) (sat.CNF, error) {
 				return sat.CNF{}, sat.ErrInput
 			}
 			if n > l.MaxVariables || k > l.MaxClauses {
-				return sat.CNF{}, sat.ErrLimit
+				return sat.CNF{}, sat.ErrInputLimit
 			}
 			c.Variables = make([]sat.Variable, n)
 			for i := range n {
@@ -83,7 +83,7 @@ func referenceReadDIMACS(r io.Reader, limits sat.Limits) (sat.CNF, error) {
 			}
 			literals++
 			if literals > l.MaxLiterals {
-				return sat.CNF{}, sat.ErrLimit
+				return sat.CNF{}, sat.ErrInputLimit
 			}
 			row = append(row, v)
 		}

@@ -386,7 +386,8 @@ Expected output:
 
 `CheckAssignment` requires every variable and checks every clause. Missing or
 violating values return an error. `WithDefaults` fills unspecified limits before
-`CheckCNF`; exceeding a configured limit returns `sat.ErrLimit`.
+`CheckCNF`; exceeding a configured limit returns `sat.ErrInputLimit`, which
+satisfies `errors.Is(err, sat.ErrLimit)`.
 DIMACS carries the formula, while application metadata and origins remain separate.
 The next example uses `sat.Result.Require` on the runner's actual validation
 records; constructing a result struct is not a substitute for those checks.

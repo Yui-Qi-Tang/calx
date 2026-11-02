@@ -97,17 +97,17 @@ func TestLimitsAndCancellation(t *testing.T) {
 	r.config.Limits.MaxVariables = 1
 	c := tinyCNF()
 	c.Variables = append(c.Variables, sat.Variable{ID: 2})
-	if _, err := r.Solve(context.Background(), "limit", c); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "limit", c); !errors.Is(err, sat.ErrInputLimit) || !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 	r = fixtureRunner(t, "while :; do echo lots-of-output; done", "exit 1", time.Second)
 	r.config.Limits.MaxOutputBytes = 64
-	if _, err := r.Solve(context.Background(), "output", tinyCNF()); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "output", tinyCNF()); !errors.Is(err, sat.ErrOutputLimit) || !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 	r = fixtureRunner(t, "printf 'proof-too-large' > proof.drat; echo 's UNSATISFIABLE'; exit 20", "exit 1", time.Second)
 	r.config.MaxProofBytes = 2
-	if _, err := r.Solve(context.Background(), "proof-limit", tinyCNF()); !errors.Is(err, sat.ErrLimit) {
+	if _, err := r.Solve(context.Background(), "proof-limit", tinyCNF()); !errors.Is(err, sat.ErrProofLimit) || !errors.Is(err, sat.ErrLimit) {
 		t.Fatal(err)
 	}
 }

@@ -96,7 +96,7 @@ func (r *Runner) Solve(ctx context.Context, id string, p linear.Problem) (result
 		return result, err
 	}
 	if len(input) > r.config.Limits.MaxInputBytes {
-		return result, sat.ErrLimit
+		return result, sat.ErrInputLimit
 	}
 	result.InputDigest, err = toolrun.Save(dir, "input.json", input)
 	if err != nil {
@@ -108,7 +108,7 @@ func (r *Runner) Solve(ctx context.Context, id string, p linear.Problem) (result
 	}
 	script := append(formula.Bytes(), "(check-sat)\n"...)
 	if len(script) > r.config.Limits.MaxInputBytes {
-		return result, sat.ErrLimit
+		return result, sat.ErrInputLimit
 	}
 	result.FormulaDigest, err = toolrun.Save(dir, "input.smt2", script)
 	if err != nil {
@@ -149,7 +149,7 @@ func (r *Runner) checkModel(ctx context.Context, dir string, p linear.Problem, s
 		model = fmt.Appendf(model, "(get-value (%s))\n", strings.Join(names, " "))
 	}
 	if len(model) > r.config.Limits.MaxInputBytes {
-		return sat.ErrLimit
+		return sat.ErrInputLimit
 	}
 	if _, err := toolrun.Save(dir, "model.smt2", model); err != nil {
 		return err
